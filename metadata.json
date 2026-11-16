@@ -1,0 +1,6 @@
+{
+  "name": "Drakos",
+  "description": "Sistema ERP y POS multisucursal para la cadena de kioscos Drakos (Argentina) con gestión de ventas, escaneo para POS e ingreso de stock, arqueos de caja, finanzas, nube Firebase y roles diferenciados.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

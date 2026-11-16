@@ -1,0 +1,372 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function hasValidServerTimestampsOnCreate(data) {
+      return data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function hasValidServerTimestampsOnUpdate(data, oldData) {
+      return data.createdAt == oldData.createdAt &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // --- ENTITY VALIDATION BLUEPRINTS ---
+
+    function isValidUserAccount(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 160)) &&
+             data.chainName is string && data.chainName.size() >= 1 && data.chainName.size() <= 120;
+    }
+
+    function isValidCloudSale(data) {
+      return data.branchId is int && data.branchId >= 1 && data.branchId <= 100 &&
+             data.branchName is string && data.branchName.size() >= 1 && data.branchName.size() <= 100 &&
+             data.receiptNumber is string && data.receiptNumber.size() >= 1 && data.receiptNumber.size() <= 60 &&
+             (data.totalAmount is int || data.totalAmount is float) && data.totalAmount >= 0 &&
+             data.paymentMethod in ['CASH', 'DEBIT', 'CREDIT', 'MP_QR', 'TRANSFER', 'ACCOUNT'] &&
+             data.status in ['COMPLETED', 'VOIDED'] &&
+             data.cashierName is string && data.cashierName.size() >= 1 && data.cashierName.size() <= 100 &&
+             data.localSaleId is int && data.localSaleId >= 0;
+    }
+
+    function isValidCloudCashSession(data) {
+      return data.branchId is int && data.branchId >= 1 && data.branchId <= 100 &&
+             data.branchName is string && data.branchName.size() >= 1 && data.branchName.size() <= 100 &&
+             data.operatorName is string && data.operatorName.size() >= 1 && data.operatorName.size() <= 100 &&
+             (data.openingAmount is int || data.openingAmount is float) && data.openingAmount >= 0 &&
+             (data.expectedCashAmount is int || data.expectedCashAmount is float) &&
+             (data.countedCashAmount is int || data.countedCashAmount is float) && data.countedCashAmount >= 0 &&
+             (data.cashDifference is int || data.cashDifference is float) &&
+             data.status in ['OPEN', 'CLOSED'] &&
+             data.differenceStatus in ['NORMAL', 'PENDING_APPROVAL', 'APPROVED'] &&
+             data.notes is string && data.notes.size() <= 300 &&
+             data.localSessionId is int && data.localSessionId >= 0;
+    }
+
+    function isValidCloudTransfer(data) {
+      return data.sourceBranchId is int && data.sourceBranchId >= 1 && data.sourceBranchId <= 100 &&
+             data.targetBranchId is int && data.targetBranchId >= 1 && data.targetBranchId <= 100 &&
+             data.sourceBranchId != data.targetBranchId &&
+             data.productSummary is string && data.productSummary.size() >= 1 && data.productSummary.size() <= 160 &&
+             data.quantity is int && data.quantity > 0 &&
+             data.status in ['REQUESTED', 'DISPATCHED', 'RECEIVED'] &&
+             data.notes is string && data.notes.size() <= 300 &&
+             data.localTransferId is int && data.localTransferId >= 0;
+    }
+
+    function isValidCloudExpense(data) {
+      return data.branchId is int && data.branchId >= 1 && data.branchId <= 100 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 40 &&
+             (data.amount is int || data.amount is float) && data.amount > 0 &&
+             data.description is string && data.description.size() >= 1 && data.description.size() <= 200 &&
+             data.paymentSource in ['CASH_DRAWER', 'BANK'] &&
+             data.localExpenseId is int && data.localExpenseId >= 0;
+    }
+
+    function isValidCloudCompanySettings(data) {
+      return data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120 &&
+             data.cuit is string && data.cuit.size() >= 1 && data.cuit.size() <= 30 &&
+             data.taxCondition is string && data.taxCondition.size() >= 1 && data.taxCondition.size() <= 80 &&
+             (data.defaultVatRate is int || data.defaultVatRate is float) && data.defaultVatRate >= 0 && data.defaultVatRate <= 100 &&
+             (data.cashDropAlertThreshold is int || data.cashDropAlertThreshold is float) && data.cashDropAlertThreshold >= 0 &&
+             (data.cashAuditTolerance is int || data.cashAuditTolerance is float) && data.cashAuditTolerance >= 0;
+    }
+
+    function isValidCloudStaffProfile(data) {
+      return data.username is string && data.username.size() >= 3 && data.username.size() <= 60 &&
+             data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100 &&
+             data.pinHash is string && data.pinHash.size() == 64 && data.pinHash.matches('^[0-9a-f]+$') &&
+             data.role in ['EMPLOYEE', 'BRANCH_MANAGER', 'OWNER'] &&
+             data.assignedBranchId is int && data.assignedBranchId >= 1 && data.assignedBranchId <= 100 &&
+             data.isActive is bool;
+    }
+
+    function isValidCloudAuthorizedDevice(data) {
+      return data.deviceId is string && data.deviceId.size() >= 4 && data.deviceId.size() <= 80 &&
+             data.deviceName is string && data.deviceName.size() >= 1 && data.deviceName.size() <= 100 &&
+             data.assignedBranchId is int && data.assignedBranchId >= 1 && data.assignedBranchId <= 100 &&
+             data.status in ['PENDING', 'AUTHORIZED', 'REVOKED'] &&
+             data.pairingCode is string && data.pairingCode.size() <= 30 &&
+             data.approvedByUserName is string && data.approvedByUserName.size() <= 100;
+    }
+
+    // --- USER WORKSPACE ROOT & PII ISOLATION ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'chainName', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'chainName', 'createdAt', 'updatedAt']) &&
+                       hasValidServerTimestampsOnCreate(incoming()) &&
+                       isValidUserAccount(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserAccount(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       hasValidServerTimestampsOnUpdate(incoming(), existing()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'chainName', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // --- MULTI-BRANCH POS SALES ---
+      match /sales/{saleId} {
+        allow get: if isOwner(userId) && isValidId(saleId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(saleId) &&
+                         incoming().keys().hasAll([
+                           'branchId', 'branchName', 'receiptNumber', 'totalAmount',
+                           'paymentMethod', 'status', 'cashierName', 'localSaleId',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'branchId', 'branchName', 'receiptNumber', 'totalAmount',
+                           'paymentMethod', 'status', 'cashierName', 'localSaleId',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidServerTimestampsOnCreate(incoming()) &&
+                         isValidCloudSale(incoming());
+
+        // Terminal State Locking: COMPLETED -> VOIDED only
+        allow update: if isOwner(userId) &&
+                         isValidId(saleId) &&
+                         isValidCloudSale(incoming()) &&
+                         hasValidServerTimestampsOnUpdate(incoming(), existing()) &&
+                         existing().status == 'COMPLETED' &&
+                         incoming().status == 'VOIDED' &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(saleId);
+      }
+
+      // --- CASH SESSIONS & BLIND Z-CLOSINGS ---
+      match /cash_sessions/{sessionId} {
+        allow get: if isOwner(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(sessionId) &&
+                         incoming().keys().hasAll([
+                           'branchId', 'branchName', 'operatorName', 'openingAmount',
+                           'expectedCashAmount', 'countedCashAmount', 'cashDifference',
+                           'status', 'differenceStatus', 'notes', 'localSessionId',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'branchId', 'branchName', 'operatorName', 'openingAmount',
+                           'expectedCashAmount', 'countedCashAmount', 'cashDifference',
+                           'status', 'differenceStatus', 'notes', 'localSessionId',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidServerTimestampsOnCreate(incoming()) &&
+                         isValidCloudCashSession(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(sessionId) &&
+                         isValidCloudCashSession(incoming()) &&
+                         hasValidServerTimestampsOnUpdate(incoming(), existing()) && (
+                           // Action 1: Close open shift with blind count
+                           (existing().status == 'OPEN' &&
+                            incoming().status == 'CLOSED' &&
+                            incoming().diff(existing()).affectedKeys().hasOnly([
+                              'expectedCashAmount', 'countedCashAmount', 'cashDifference',
+                              'status', 'differenceStatus', 'notes', 'updatedAt'
+                            ])) ||
+                           // Action 2: Supervisor approves cash variance
+                           (existing().status == 'CLOSED' &&
+                            existing().differenceStatus == 'PENDING_APPROVAL' &&
+                            incoming().status == 'CLOSED' &&
+                            incoming().differenceStatus == 'APPROVED' &&
+                            incoming().diff(existing()).affectedKeys().hasOnly([
+                              'differenceStatus', 'notes', 'updatedAt'
+                            ]))
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(sessionId);
+      }
+
+      // --- INTER-BRANCH TRANSFERS ---
+      match /transfers/{transferId} {
+        allow get: if isOwner(userId) && isValidId(transferId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(transferId) &&
+                         incoming().keys().hasAll([
+                           'sourceBranchId', 'targetBranchId', 'productSummary',
+                           'quantity', 'status', 'notes', 'localTransferId',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'sourceBranchId', 'targetBranchId', 'productSummary',
+                           'quantity', 'status', 'notes', 'localTransferId',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidServerTimestampsOnCreate(incoming()) &&
+                         isValidCloudTransfer(incoming());
+
+        // Action-based update + Terminal State Lock on RECEIVED
+        allow update: if isOwner(userId) &&
+                         isValidId(transferId) &&
+                         isValidCloudTransfer(incoming()) &&
+                         hasValidServerTimestampsOnUpdate(incoming(), existing()) &&
+                         existing().status != 'RECEIVED' && (
+                           (existing().status == 'REQUESTED' && incoming().status == 'DISPATCHED') ||
+                           (existing().status == 'DISPATCHED' && incoming().status == 'RECEIVED')
+                         ) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(transferId);
+      }
+
+      // --- IMMUTABLE EXPENSES LEDGER ---
+      match /expenses/{expenseId} {
+        allow get: if isOwner(userId) && isValidId(expenseId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(expenseId) &&
+                         incoming().keys().hasAll([
+                           'branchId', 'category', 'amount', 'description',
+                           'paymentSource', 'localExpenseId', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'branchId', 'category', 'amount', 'description',
+                           'paymentSource', 'localExpenseId', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidServerTimestampsOnCreate(incoming()) &&
+                         isValidCloudExpense(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(expenseId);
+      }
+
+      // --- CHAIN COMPANY & FISCAL SETTINGS ---
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(settingId) &&
+                         incoming().keys().hasAll([
+                           'businessName', 'cuit', 'taxCondition',
+                           'defaultVatRate', 'cashDropAlertThreshold', 'cashAuditTolerance',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'businessName', 'cuit', 'taxCondition',
+                           'defaultVatRate', 'cashDropAlertThreshold', 'cashAuditTolerance',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidServerTimestampsOnCreate(incoming()) &&
+                         isValidCloudCompanySettings(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(settingId) &&
+                         isValidCloudCompanySettings(incoming()) &&
+                         hasValidServerTimestampsOnUpdate(incoming(), existing()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'businessName', 'cuit', 'taxCondition',
+                           'defaultVatRate', 'cashDropAlertThreshold', 'cashAuditTolerance',
+                           'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(settingId);
+      }
+
+      // --- STAFF ACCESS PROFILES (HASHED PINS + ROLES) ---
+      match /staff_profiles/{profileId} {
+        allow get: if isOwner(userId) && isValidId(profileId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(profileId) &&
+                         incoming().keys().hasAll([
+                           'username', 'fullName', 'pinHash', 'role',
+                           'assignedBranchId', 'isActive', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'username', 'fullName', 'pinHash', 'role',
+                           'assignedBranchId', 'isActive', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidServerTimestampsOnCreate(incoming()) &&
+                         isValidCloudStaffProfile(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(profileId) &&
+                         isValidCloudStaffProfile(incoming()) &&
+                         hasValidServerTimestampsOnUpdate(incoming(), existing()) &&
+                         incoming().username == existing().username &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'fullName', 'pinHash', 'role', 'assignedBranchId', 'isActive', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(profileId);
+      }
+
+      // --- AUTHORIZED DEVICES & PAIRING INVITES ---
+      match /devices/{deviceDocId} {
+        allow get: if isOwner(userId) && isValidId(deviceDocId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(deviceDocId) &&
+                         incoming().keys().hasAll([
+                           'deviceId', 'deviceName', 'assignedBranchId', 'status',
+                           'pairingCode', 'approvedByUserName', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'deviceId', 'deviceName', 'assignedBranchId', 'status',
+                           'pairingCode', 'approvedByUserName', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidServerTimestampsOnCreate(incoming()) &&
+                         isValidCloudAuthorizedDevice(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(deviceDocId) &&
+                         isValidCloudAuthorizedDevice(incoming()) &&
+                         hasValidServerTimestampsOnUpdate(incoming(), existing()) &&
+                         incoming().deviceId == existing().deviceId &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'deviceName', 'assignedBranchId', 'status', 'pairingCode', 'approvedByUserName', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(deviceDocId);
+      }
+    }
+  }
+}

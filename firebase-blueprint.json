@@ -1,0 +1,363 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated chain account owner metadata and workspace identity.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID owning this chain workspace."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the authenticated Google account."
+        },
+        "email": {
+          "type": "string",
+          "description": "Private email address of the Google account owner."
+        },
+        "chainName": {
+          "type": "string",
+          "description": "Commercial name of the 10-kiosk chain."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when workspace was created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when workspace was last updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "displayName", "chainName", "createdAt", "updatedAt"]
+    },
+    "CloudSale": {
+      "title": "CloudSale",
+      "description": "Synchronized POS sale record from any of the 10 branches.",
+      "type": "object",
+      "properties": {
+        "branchId": {
+          "type": "integer",
+          "description": "Numeric branch identifier (1..10)."
+        },
+        "branchName": {
+          "type": "string",
+          "description": "Human-readable branch name."
+        },
+        "receiptNumber": {
+          "type": "string",
+          "description": "POS ticket number."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Final total charged in ARS."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["CASH", "DEBIT", "CREDIT", "MP_QR", "TRANSFER", "ACCOUNT"],
+          "description": "Payment method enum name."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["COMPLETED", "VOIDED"],
+          "description": "Lifecycle status of the sale."
+        },
+        "cashierName": {
+          "type": "string",
+          "description": "Operator full name who recorded the sale."
+        },
+        "localSaleId": {
+          "type": "integer",
+          "description": "Local Room primary key for deterministic document mapping."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "branchId",
+        "branchName",
+        "receiptNumber",
+        "totalAmount",
+        "paymentMethod",
+        "status",
+        "cashierName",
+        "localSaleId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudCashSession": {
+      "title": "CloudCashSession",
+      "description": "Synchronized shift and blind cash count Z closing record.",
+      "type": "object",
+      "properties": {
+        "branchId": { "type": "integer" },
+        "branchName": { "type": "string" },
+        "operatorName": { "type": "string" },
+        "openingAmount": { "type": "number" },
+        "expectedCashAmount": { "type": "number" },
+        "countedCashAmount": { "type": "number" },
+        "cashDifference": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["OPEN", "CLOSED"]
+        },
+        "differenceStatus": {
+          "type": "string",
+          "enum": ["NORMAL", "PENDING_APPROVAL", "APPROVED"]
+        },
+        "notes": { "type": "string" },
+        "localSessionId": { "type": "integer" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "branchId",
+        "branchName",
+        "operatorName",
+        "openingAmount",
+        "expectedCashAmount",
+        "countedCashAmount",
+        "cashDifference",
+        "status",
+        "differenceStatus",
+        "notes",
+        "localSessionId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudTransfer": {
+      "title": "CloudTransfer",
+      "description": "Synchronized inter-branch stock transfer workflow record.",
+      "type": "object",
+      "properties": {
+        "sourceBranchId": { "type": "integer" },
+        "targetBranchId": { "type": "integer" },
+        "productSummary": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "status": {
+          "type": "string",
+          "enum": ["REQUESTED", "DISPATCHED", "RECEIVED"]
+        },
+        "notes": { "type": "string" },
+        "localTransferId": { "type": "integer" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "sourceBranchId",
+        "targetBranchId",
+        "productSummary",
+        "quantity",
+        "status",
+        "notes",
+        "localTransferId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudExpense": {
+      "title": "CloudExpense",
+      "description": "Synchronized immutable operational expense entry.",
+      "type": "object",
+      "properties": {
+        "branchId": { "type": "integer" },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "paymentSource": {
+          "type": "string",
+          "enum": ["CASH_DRAWER", "BANK"]
+        },
+        "localExpenseId": { "type": "integer" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "branchId",
+        "category",
+        "amount",
+        "description",
+        "paymentSource",
+        "localExpenseId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudCompanySettings": {
+      "title": "CloudCompanySettings",
+      "description": "Chain-wide fiscal, VAT and cash audit parameters.",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "cuit": { "type": "string" },
+        "taxCondition": { "type": "string" },
+        "defaultVatRate": { "type": "number" },
+        "cashDropAlertThreshold": { "type": "number" },
+        "cashAuditTolerance": { "type": "number" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "businessName",
+        "cuit",
+        "taxCondition",
+        "defaultVatRate",
+        "cashDropAlertThreshold",
+        "cashAuditTolerance",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudStaffProfile": {
+      "title": "CloudStaffProfile",
+      "description": "Synchronized staff access profile with salted SHA-256 PIN hash and role level.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "fullName": { "type": "string" },
+        "pinHash": { "type": "string" },
+        "role": {
+          "type": "string",
+          "enum": ["EMPLOYEE", "BRANCH_MANAGER", "OWNER"]
+        },
+        "assignedBranchId": { "type": "integer" },
+        "isActive": { "type": "boolean" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "username",
+        "fullName",
+        "pinHash",
+        "role",
+        "assignedBranchId",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudAuthorizedDevice": {
+      "title": "CloudAuthorizedDevice",
+      "description": "Synchronized authorized terminal or pending pairing invitation across the chain.",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string" },
+        "deviceName": { "type": "string" },
+        "assignedBranchId": { "type": "integer" },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "AUTHORIZED", "REVOKED"]
+        },
+        "pairingCode": { "type": "string" },
+        "approvedByUserName": { "type": "string" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "deviceId",
+        "deviceName",
+        "assignedBranchId",
+        "status",
+        "pairingCode",
+        "approvedByUserName",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Authenticated user workspace document."
+    },
+    "/users/{userId}/sales/{saleId}": {
+      "schema": { "$ref": "#/entities/CloudSale" },
+      "description": "Synced multi-branch sales owned by authenticated account."
+    },
+    "/users/{userId}/cash_sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/CloudCashSession" },
+      "description": "Synced shift openings and Z closings owned by authenticated account."
+    },
+    "/users/{userId}/transfers/{transferId}": {
+      "schema": { "$ref": "#/entities/CloudTransfer" },
+      "description": "Synced inter-branch stock transfers owned by authenticated account."
+    },
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/CloudExpense" },
+      "description": "Synced branch operational expenses owned by authenticated account."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/CloudCompanySettings" },
+      "description": "Synced chain-wide fiscal and audit parameters."
+    },
+    "/users/{userId}/staff_profiles/{profileId}": {
+      "schema": { "$ref": "#/entities/CloudStaffProfile" },
+      "description": "Synced staff profiles (SHA-256 PIN hashes and RBAC roles) owned by authenticated account."
+    },
+    "/users/{userId}/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/CloudAuthorizedDevice" },
+      "description": "Synced authorized terminals and device pairing tokens owned by authenticated account."
+    }
+  }
+}
