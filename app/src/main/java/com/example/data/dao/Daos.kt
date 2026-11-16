@@ -18,6 +18,7 @@ import com.example.data.entity.ExpenseEntity
 import com.example.data.entity.InventoryMovementEntity
 import com.example.data.entity.ProductBatchEntity
 import com.example.data.entity.ProductEntity
+import com.example.data.entity.PromotionEntity
 import com.example.data.entity.SaleEntity
 import com.example.data.entity.SaleItemEntity
 import com.example.data.entity.StockTransferEntity
@@ -387,3 +388,31 @@ interface WeeklyOrderDao {
     @Update
     suspend fun updateOrder(order: WeeklyOrderEntity)
 }
+
+@Dao
+interface PromotionDao {
+    @Query("SELECT * FROM promotions ORDER BY isActive DESC, createdAt DESC")
+    fun getAllPromotions(): Flow<List<PromotionEntity>>
+
+    @Query("SELECT * FROM promotions WHERE isActive = 1 ORDER BY createdAt DESC")
+    fun getActivePromotions(): Flow<List<PromotionEntity>>
+
+    @Query("SELECT * FROM promotions WHERE id = :id LIMIT 1")
+    suspend fun getPromotionById(id: Long): PromotionEntity?
+
+    @Query("SELECT COUNT(*) FROM promotions")
+    suspend fun countPromotions(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPromotion(promo: PromotionEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPromotions(promos: List<PromotionEntity>)
+
+    @Update
+    suspend fun updatePromotion(promo: PromotionEntity)
+
+    @Query("DELETE FROM promotions WHERE id = :id")
+    suspend fun deletePromotionById(id: Long)
+}
+

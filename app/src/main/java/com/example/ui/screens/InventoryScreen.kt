@@ -127,22 +127,32 @@ fun InventoryScreen(
             .background(DrakosCanvas)
             .padding(14.dp)
     ) {
-        Text(
-            text = if (isManagerOrOwner) "Gestión Avanzada de Stock" else "Ingreso & Control de Stock",
-            fontFamily = SpaceGroteskFontFamily,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = DrakosBlack
-        )
-        Text(
-            text = if (isManagerOrOwner) {
-                "Sucursal: ${currentBranch?.name ?: "Drakos"} • Planilla, Pedidos y Facturación"
-            } else {
-                "Sucursal: ${currentBranch?.name ?: "Drakos"} • Escaneo e ingreso rápido de mercadería"
-            },
-            fontSize = 12.sp,
-            color = DrakosMutedInk
-        )
+        Surface(
+            color = DrakosWhite,
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, DrakosBorder),
+            shadowElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = if (isManagerOrOwner) "Gestión Avanzada de Stock" else "Ingreso & Control de Stock",
+                    fontFamily = SpaceGroteskFontFamily,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DrakosBlack
+                )
+                Text(
+                    text = if (isManagerOrOwner) {
+                        "Sucursal: ${currentBranch?.name ?: "Drakos"} • Planilla, Pedidos y Facturación"
+                    } else {
+                        "Sucursal: ${currentBranch?.name ?: "Drakos"} • Escaneo e ingreso rápido de mercadería"
+                    },
+                    fontSize = 11.sp,
+                    color = DrakosMutedInk
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -246,8 +256,9 @@ fun InventoryScreen(
 
         // Pestañas diferenciadas según nivel de acceso
         val invChipColors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = DrakosBlack,
-            selectedLabelColor = DrakosWhite
+            selectedContainerColor = DrakosRed,
+            selectedLabelColor = DrakosWhite,
+            selectedLeadingIconColor = DrakosWhite
         )
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
@@ -259,8 +270,9 @@ fun InventoryScreen(
                         selected = inventoryTab == 1,
                         onClick = { inventoryTab = 1 },
                         colors = invChipColors,
+                        shape = RoundedCornerShape(10.dp),
                         leadingIcon = { Icon(Icons.Default.GridOn, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("Planilla Excel", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Planilla Excel", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         modifier = Modifier.testTag("inv_tab_excel")
                     )
                 }
@@ -270,18 +282,31 @@ fun InventoryScreen(
                     selected = inventoryTab == 0,
                     onClick = { inventoryTab = 0 },
                     colors = invChipColors,
-                    label = { Text("Stock Local (${products.size})", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(10.dp),
+                    label = { Text("Stock Local (${products.size})", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                     modifier = Modifier.testTag("inv_tab_list")
                 )
             }
             if (isManagerOrOwner) {
                 item {
                     FilterChip(
+                        selected = inventoryTab == 5,
+                        onClick = { inventoryTab = 5 },
+                        colors = invChipColors,
+                        shape = RoundedCornerShape(10.dp),
+                        leadingIcon = { Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                        label = { Text("Promociones", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.testTag("inv_tab_promos")
+                    )
+                }
+                item {
+                    FilterChip(
                         selected = inventoryTab == 2,
                         onClick = { inventoryTab = 2 },
                         colors = invChipColors,
+                        shape = RoundedCornerShape(10.dp),
                         leadingIcon = { Icon(Icons.Default.ShoppingCartCheckout, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("Pedido Semanal", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Pedido Semanal", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         modifier = Modifier.testTag("inv_tab_weekly_order")
                     )
                 }
@@ -290,8 +315,9 @@ fun InventoryScreen(
                         selected = inventoryTab == 3,
                         onClick = { inventoryTab = 3 },
                         colors = invChipColors,
+                        shape = RoundedCornerShape(10.dp),
                         leadingIcon = { Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("Proveedores y Fact.", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Proveedores y Fact.", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         modifier = Modifier.testTag("inv_tab_suppliers")
                     )
                 }
@@ -301,8 +327,9 @@ fun InventoryScreen(
                     selected = inventoryTab == 4,
                     onClick = { inventoryTab = 4 },
                     colors = invChipColors,
+                    shape = RoundedCornerShape(10.dp),
                     leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                    label = { Text("Vencimientos", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    label = { Text("Vencimientos", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                     modifier = Modifier.testTag("inv_tab_expiry")
                 )
             }
@@ -336,6 +363,13 @@ fun InventoryScreen(
                         receiptPreselectedProductId = null
                         showGoodsReceiptModal = true
                     },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            5 -> if (isManagerOrOwner) {
+                PromotionsManagementSection(
+                    viewModel = viewModel,
                     modifier = Modifier.weight(1f)
                 )
             }

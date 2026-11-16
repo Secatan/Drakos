@@ -65,40 +65,48 @@ fun AuditScreen(
             .background(com.example.ui.theme.DrakosCanvas)
             .padding(14.dp)
     ) {
-        // Cabecera
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Cabecera SaaS
+        Surface(
+            color = com.example.ui.theme.DrakosWhite,
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.DrakosHairline),
+            shadowElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column {
+            Column(modifier = Modifier.padding(14.dp)) {
                 Text(
                     text = "Auditoría Forense y Personal",
                     fontFamily = com.example.ui.theme.SpaceGroteskFontFamily,
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
-                    color = BrandNavy900
+                    color = com.example.ui.theme.DrakosDarkGray
                 )
                 Text(
                     text = "Trazabilidad inmutable de operaciones y control de accesos",
-                    fontSize = 12.sp,
-                    color = BrandSlate700
+                    fontSize = 11.sp,
+                    color = com.example.ui.theme.DrakosMutedGray
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        val auditChipColors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+            selectedContainerColor = com.example.ui.theme.DrakosRed,
+            selectedLabelColor = com.example.ui.theme.DrakosWhite
+        )
         // Tabs
         Row(modifier = Modifier.fillMaxWidth()) {
             FilterChip(
                 selected = currentTab == 0,
                 onClick = { currentTab = 0 },
+                colors = auditChipColors,
+                shape = RoundedCornerShape(10.dp),
                 label = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Registro de Auditoría (${auditLogs.size})", fontSize = 12.sp)
+                        Text("Registro de Auditoría (${auditLogs.size})", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             )
@@ -106,11 +114,13 @@ fun AuditScreen(
             FilterChip(
                 selected = currentTab == 1,
                 onClick = { currentTab = 1 },
+                colors = auditChipColors,
+                shape = RoundedCornerShape(10.dp),
                 label = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.People, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Plantel (${users.size} empleados)", fontSize = 12.sp)
+                        Text("Plantel (${users.size} empleados)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             )

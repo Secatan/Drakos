@@ -17,8 +17,8 @@ import androidx.compose.ui.unit.dp
 private val DrakosShapes = Shapes(
     small = RoundedCornerShape(8.dp),
     medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(22.dp)
+    large = RoundedCornerShape(14.dp),
+    extraLarge = RoundedCornerShape(20.dp)
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -28,8 +28,8 @@ private val LightColorScheme = lightColorScheme(
     onPrimaryContainer = DrakosRedDark,
     secondary = DrakosBlack,
     onSecondary = DrakosWhite,
-    secondaryContainer = DrakosSurfaceTint,
-    onSecondaryContainer = DrakosBlack,
+    secondaryContainer = DrakosSurfaceSoft,
+    onSecondaryContainer = DrakosDarkGray,
     tertiary = SuccessGreen,
     onTertiary = DrakosWhite,
     tertiaryContainer = SuccessGreenContainer,
@@ -38,17 +38,17 @@ private val LightColorScheme = lightColorScheme(
     errorContainer = DangerRedContainer,
     onError = DrakosWhite,
     onErrorContainer = Color(0xFF7F1D1D),
-    background = DrakosCanvas,
-    onBackground = DrakosBlack,
+    background = DrakosLightCanvas,
+    onBackground = DrakosDarkGray,
     surface = DrakosWhite,
-    onSurface = DrakosBlack,
-    surfaceVariant = DrakosSurfaceTint,
-    onSurfaceVariant = DrakosMutedInk,
-    outline = DrakosBorder
+    onSurface = DrakosDarkGray,
+    surfaceVariant = DrakosSurfaceSoft,
+    onSurfaceVariant = DrakosMutedGray,
+    outline = DrakosHairline
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = DrakosRedBright,
+    primary = DrakosRed,
     onPrimary = DrakosWhite,
     primaryContainer = DrakosRedDark,
     onPrimaryContainer = DrakosWhite,
@@ -61,16 +61,16 @@ private val DarkColorScheme = darkColorScheme(
     error = DangerRed,
     background = DrakosBlack,
     onBackground = DrakosWhite,
-    surface = DrakosCharcoal,
+    surface = DrakosDarkGray,
     onSurface = DrakosWhite,
     surfaceVariant = DrakosGraphite,
-    onSurfaceVariant = DrakosBorder,
-    outline = DrakosMutedInk
+    onSurfaceVariant = DrakosHairline,
+    outline = DrakosMutedGray
 )
 
 @Composable
 fun KioscoPOSTheme(
-    darkTheme: Boolean = false, // Estética de alto contraste Blanco/Rojo/Negro Drakos para mostrador
+    darkTheme: Boolean = false, // Light-First SaaS equilibrado (#F5F6F8 + #FFFFFF) con chrome #08090B
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {

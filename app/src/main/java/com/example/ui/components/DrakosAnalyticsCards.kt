@@ -59,7 +59,7 @@ fun HourlyHeatmapCard(
         colors = CardDefaults.cardColors(containerColor = DrakosWhite),
         border = BorderStroke(1.dp, DrakosBorder),
         shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.cardElevation(0.dp)
+        elevation = CardDefaults.cardElevation(1.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(

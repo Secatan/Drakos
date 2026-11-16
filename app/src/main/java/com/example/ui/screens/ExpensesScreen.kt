@@ -73,49 +73,61 @@ fun ExpensesScreen(
             .background(com.example.ui.theme.DrakosCanvas)
             .padding(14.dp)
     ) {
-        // Cabecera
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Cabecera SaaS
+        Surface(
+            color = com.example.ui.theme.DrakosWhite,
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.DrakosHairline),
+            shadowElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column {
-                Text(
-                    text = "Gastos Operativos y Caja Chica",
-                    fontFamily = com.example.ui.theme.SpaceGroteskFontFamily,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandNavy900
-                )
-                Text(
-                    text = "Control de egresos, servicios y mantenimiento",
-                    fontSize = 12.sp,
-                    color = BrandSlate700
-                )
-            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Gastos Operativos y Caja Chica",
+                        fontFamily = com.example.ui.theme.SpaceGroteskFontFamily,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = com.example.ui.theme.DrakosDarkGray
+                    )
+                    Text(
+                        text = "Control de egresos, servicios y mantenimiento",
+                        fontSize = 11.sp,
+                        color = com.example.ui.theme.DrakosMutedGray
+                    )
+                }
 
-            if (currentUser?.role != UserRole.EMPLOYEE) {
-                Button(
-                    onClick = { showNewExpenseModal = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                    modifier = Modifier.testTag("new_expense_button")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Registrar Gasto", fontSize = 12.sp)
+                if (currentUser?.role != UserRole.EMPLOYEE) {
+                    Button(
+                        onClick = { showNewExpenseModal = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.DrakosRed),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("new_expense_button")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Registrar Gasto", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Total Egresos
         val totalExpenses = activeList.sumOf { it.amount }
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(10.dp),
-            elevation = CardDefaults.cardElevation(2.dp)
+            colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.DrakosWhite),
+            border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.DrakosHairline),
+            shape = RoundedCornerShape(14.dp),
+            elevation = CardDefaults.cardElevation(1.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(14.dp),

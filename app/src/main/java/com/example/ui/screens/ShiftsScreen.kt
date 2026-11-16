@@ -115,8 +115,9 @@ fun ShiftsScreen(
     var sessionForClosingZ by remember { mutableStateOf<CashSessionEntity?>(null) }
 
     val tabChipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = DrakosBlack,
-        selectedLabelColor = DrakosWhite
+        selectedContainerColor = DrakosRed,
+        selectedLabelColor = DrakosWhite,
+        selectedLeadingIconColor = DrakosWhite
     )
 
     Column(
@@ -146,15 +147,17 @@ fun ShiftsScreen(
                     selected = shiftsTab == 0,
                     onClick = { shiftsTab = 0 },
                     colors = tabChipColors,
-                    label = { Text("Turno & Historial", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(10.dp),
+                    label = { Text("Turno & Historial", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                     modifier = Modifier.testTag("shifts_tab_history")
                 )
                 FilterChip(
                     selected = shiftsTab == 1,
                     onClick = { shiftsTab = 1 },
                     colors = tabChipColors,
+                    shape = RoundedCornerShape(10.dp),
                     leadingIcon = { Icon(Icons.Default.PersonSearch, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                    label = { Text("Desvíos x Cajero (${cashierVariances.size})", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    label = { Text("Desvíos x Cajero (${cashierVariances.size})", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                     modifier = Modifier.testTag("shifts_tab_cashier_variance")
                 )
             }

@@ -136,12 +136,14 @@ fun TopHeader(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.drawable.img_drakos_bulldog),
-                            contentDescription = "Drakos Bulldog Blanco",
-                            contentScale = ContentScale.Crop,
+                            contentDescription = "Logo oficial Drako's Store",
+                            contentScale = ContentScale.Fit,
                             modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .border(1.5.dp, DrakosRed, CircleShape)
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.Black)
+                                .border(1.5.dp, DrakosRed, RoundedCornerShape(10.dp))
+                                .padding(2.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -390,11 +392,12 @@ fun PinLoginModal(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = DrakosWhite,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryBlue)
+                Icon(Icons.Default.Lock, contentDescription = null, tint = DrakosRed)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Cambio de Operador / Sesión", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("Cambio de Operador / Sesión", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DrakosBlack)
             }
         },
         text = {
@@ -408,7 +411,7 @@ fun PinLoginModal(
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text("Operador activo:", fontSize = 11.sp, color = BrandSlate700)
                             Text(active.fullName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BrandNavy900)
-                            Text("${active.role.label} • Usuario: ${active.username}", fontSize = 12.sp, color = PrimaryBlue, fontWeight = FontWeight.SemiBold)
+                            Text("${active.role.label} • Usuario: ${active.username}", fontSize = 12.sp, color = DrakosRed, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -499,7 +502,7 @@ fun PinLoginModal(
                     }
                 },
                 enabled = pinInput.length == 4 && !isLockedOut,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
                 modifier = Modifier.heightIn(min = 48.dp)
             ) {
                 Text("Validar PIN")
@@ -510,7 +513,7 @@ fun PinLoginModal(
                 onClick = onDismiss,
                 modifier = Modifier.heightIn(min = 48.dp)
             ) {
-                Text("Cancelar")
+                Text("Cancelar", color = DrakosBlack)
             }
         }
     )
@@ -528,6 +531,7 @@ fun DigitalReceiptModal(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = DrakosWhite,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -537,7 +541,7 @@ fun DigitalReceiptModal(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Receipt, contentDescription = null, tint = SuccessGreen)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Ticket Emitido", fontWeight = FontWeight.Bold)
+                    Text("Ticket Emitido", fontWeight = FontWeight.Bold, color = DrakosBlack)
                 }
                 Text(
                     text = "Venta Exitosa",
@@ -662,7 +666,7 @@ fun DigitalReceiptModal(
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                colors = ButtonDefaults.buttonColors(containerColor = DrakosRed)
             ) {
                 Text("Listo / Siguiente Venta")
             }
@@ -724,11 +728,12 @@ fun ThermalClosingZModal(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = DrakosWhite,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Receipt, contentDescription = null, tint = PrimaryBlue)
+                Icon(Icons.Default.Receipt, contentDescription = null, tint = DrakosRed)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Cierre Z de Turno (Fiscal 80mm)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Cierre Z de Turno (Fiscal 80mm)", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DrakosBlack)
             }
         },
         text = {
@@ -792,7 +797,7 @@ fun ThermalClosingZModal(
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Diferencia Arqueo:", fontSize = 10.sp, fontFamily = JetBrainsMonoFontFamily)
-                        val diffColor = if (diff < 0) DangerRed else if (diff > 0) PrimaryBlue else SuccessGreen
+                        val diffColor = if (diff < 0) DangerRed else if (diff > 0) DrakosRed else SuccessGreen
                         Text(diffText, fontSize = 10.sp, fontFamily = JetBrainsMonoFontFamily, fontWeight = FontWeight.ExtraBold, color = diffColor)
                     }
 
@@ -853,7 +858,7 @@ fun ThermalClosingZModal(
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                colors = ButtonDefaults.buttonColors(containerColor = DrakosRed)
             ) {
                 Text("Cerrar")
             }

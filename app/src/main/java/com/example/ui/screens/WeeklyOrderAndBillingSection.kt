@@ -130,10 +130,12 @@ fun WeeklyOrderSection(
     Column(modifier = modifier.fillMaxSize()) {
         // Cabecera de Cobertura y Proveedor
         Card(
-            colors = CardDefaults.cardColors(containerColor = DrakosBlack),
-            shape = RoundedCornerShape(12.dp)
+            colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+            border = BorderStroke(1.dp, DrakosBorder),
+            shape = RoundedCornerShape(14.dp),
+            elevation = CardDefaults.cardElevation(1.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -145,12 +147,12 @@ fun WeeklyOrderSection(
                             fontFamily = SpaceGroteskFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
-                            color = DrakosWhite
+                            color = DrakosBlack
                         )
                         Text(
                             text = "Calculado automáticamente según rotación de ventas y punto mínimo.",
                             fontSize = 11.sp,
-                            color = androidx.compose.ui.graphics.Color(0xFFD4D4D8)
+                            color = DrakosMutedInk
                         )
                     }
                     Surface(color = DrakosRed, shape = RoundedCornerShape(8.dp)) {

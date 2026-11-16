@@ -15,6 +15,7 @@ import com.example.data.entity.ExpenseEntity
 import com.example.data.entity.InventoryMovementEntity
 import com.example.data.entity.ProductBatchEntity
 import com.example.data.entity.ProductEntity
+import com.example.data.entity.PromotionEntity
 import com.example.data.entity.SaleEntity
 import com.example.data.entity.SaleItemEntity
 import com.example.data.entity.StockTransferEntity
@@ -63,6 +64,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
     private val messageDao = database.branchMessageDao()
     private val invoiceDao = database.supplierInvoiceDao()
     private val weeklyOrderDao = database.weeklyOrderDao()
+    private val promotionDao = database.promotionDao()
 
     // --- Lecturas Reactivas ---
     fun getBranches(): Flow<List<BranchEntity>> = branchDao.getAllBranches()
@@ -104,6 +106,8 @@ class KioscoRepository(private val database: KioscoDatabase) {
     fun getAllSupplierInvoices(): Flow<List<SupplierInvoiceEntity>> = invoiceDao.getAllInvoices()
     fun getWeeklyOrders(branchId: Long): Flow<List<WeeklyOrderEntity>> = weeklyOrderDao.getOrdersForBranch(branchId)
     fun getAllWeeklyOrders(): Flow<List<WeeklyOrderEntity>> = weeklyOrderDao.getAllOrders()
+    fun getAllPromotions(): Flow<List<PromotionEntity>> = promotionDao.getAllPromotions()
+    fun getActivePromotions(): Flow<List<PromotionEntity>> = promotionDao.getActivePromotions()
 
     fun getBranchBatchExpiryItems(branchId: Long): Flow<List<BatchExpiryItem>> {
         return combine(
@@ -1729,6 +1733,111 @@ class KioscoRepository(private val database: KioscoDatabase) {
             )
         )
         Result.success(roundedPromoPrice)
+    }
+
+    // --- PROMOCIONES Y COMBOS DRAKOS ---
+
+    suspend fun savePromotion(
+        promoId: Long? = null,
+        title: String,
+        badge: String,
+        description: String,
+        discountPercent: Double,
+        fixedPromoPrice: Double?,
+        itemsSpec: String,
+        validSchedule: String,
+        isActive: Boolean,
+        userId: Long,
+        userName: String,
+        branchId: Long
+    ): Result<Long> = database.withTransaction {
+        val cleanTitle = title.trim()
+        if (cleanTitle.isBlank()) {
+            return@withTransaction Result.failure(IllegalArgumentException("Ingrese un nombre para la promoción."))
+        }
+        if (itemsSpec.isBlank()) {
+            return@withTransaction Result.failure(IllegalArgumentException("Agregue al menos un producto a la promoción."))
+        }
+        if (fixedPromoPrice == null && (discountPercent < 0.0 || discountPercent > 90.0)) {
+            return@withTransaction Result.failure(IllegalArgumentException("El descuento debe estar entre 0% y 90%."))
+        }
+        if (fixedPromoPrice != null && fixedPromoPrice <= 0.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("El precio promocional debe ser mayor a $0."))
+        }
+
+        val entity = PromotionEntity(
+            id = promoId ?: 0L,
+            title = cleanTitle,
+            badge = badge.trim().uppercase().ifBlank { "COMBO" }.take(12),
+            description = description.trim(),
+            discountPercent = discountPercent.coerceIn(0.0, 90.0),
+            fixedPromoPrice = fixedPromoPrice,
+            itemsSpec = itemsSpec,
+            validSchedule = validSchedule.trim().ifBlank { "24hs • Todos los días" },
+            isActive = isActive,
+            createdByUserId = userId,
+            createdByUserName = userName
+        )
+        val savedId = promotionDao.insertPromotion(entity)
+        auditDao.insertAuditLog(
+            AuditLogEntity(
+                userId = userId,
+                userName = userName,
+                branchId = branchId,
+                action = if (promoId == null || promoId == 0L) "PROMOTION_CREATED" else "PROMOTION_UPDATED",
+                entityType = "PROMOTION",
+                entityId = savedId.toString(),
+                details = "Promoción '$cleanTitle' [${entity.badge}] guardada (Items: $itemsSpec)."
+            )
+        )
+        Result.success(savedId)
+    }
+
+    suspend fun togglePromotionActive(
+        promoId: Long,
+        isActive: Boolean,
+        userId: Long,
+        userName: String,
+        branchId: Long
+    ): Result<Unit> = database.withTransaction {
+        val existing = promotionDao.getPromotionById(promoId)
+            ?: return@withTransaction Result.failure(IllegalStateException("Promoción no encontrada."))
+        promotionDao.updatePromotion(existing.copy(isActive = isActive))
+        auditDao.insertAuditLog(
+            AuditLogEntity(
+                userId = userId,
+                userName = userName,
+                branchId = branchId,
+                action = "PROMOTION_TOGGLED",
+                entityType = "PROMOTION",
+                entityId = promoId.toString(),
+                details = "Promoción '${existing.title}' ${if (isActive) "ACTIVADA" else "PAUSADA"}."
+            )
+        )
+        Result.success(Unit)
+    }
+
+    suspend fun deletePromotion(
+        promoId: Long,
+        userId: Long,
+        userName: String,
+        branchId: Long
+    ): Result<Unit> = database.withTransaction {
+        val existing = promotionDao.getPromotionById(promoId)
+            ?: return@withTransaction Result.failure(IllegalStateException("Promoción no encontrada."))
+        promotionDao.deletePromotionById(promoId)
+        auditDao.insertAuditLog(
+            AuditLogEntity(
+                userId = userId,
+                userName = userName,
+                branchId = branchId,
+                action = "PROMOTION_DELETED",
+                entityType = "PROMOTION",
+                entityId = promoId.toString(),
+                details = "Promoción '${existing.title}' eliminada del catálogo POS."
+            )
+        )
+        Result.success(Unit)
     }
 }
 

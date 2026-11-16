@@ -138,86 +138,104 @@ fun PinLoginScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(DrakosBlack, DrakosCharcoal, Color(0xFF1F060C))
-                )
-            )
+            .background(com.example.ui.theme.DrakosLightCanvas)
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 420.dp)
+                .widthIn(max = 460.dp)
                 .verticalScroll(rememberScrollState()),
-            shape = RoundedCornerShape(22.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = DrakosWhite),
             border = BorderStroke(1.dp, DrakosBorder),
-            elevation = CardDefaults.cardElevation(12.dp)
+            elevation = CardDefaults.cardElevation(4.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
+                // Cabecera corporativa oscura DRAKO'S STORE con el logo oficial enviado
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(DrakosBlack, Color(0xFF14161B), Color(0xFF28050A))
+                            )
+                        )
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_drakos_bulldog),
+                            contentDescription = "Logo Oficial Drako's Store",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .size(78.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color.Black)
+                                .border(1.5.dp, DrakosRed, RoundedCornerShape(14.dp))
+                                .padding(4.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "DRAKOS",
+                                    fontFamily = SpaceGroteskFontFamily,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 2.sp,
+                                    color = DrakosWhite
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    color = DrakosRed,
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "24HS",
+                                        fontFamily = SpaceGroteskFontFamily,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = DrakosWhite,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "MANAGEMENT • 365 DÍAS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                color = DrakosWhite.copy(alpha = 0.72f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = currentBranch?.name ?: "Terminal Punto de Venta",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DrakosWhite.copy(alpha = 0.92f)
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
                         .background(DrakosRed)
                 )
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_drakos_bulldog),
-                        contentDescription = "Logo Bulldog Blanco Drakos",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .border(2.5.dp, DrakosRed, CircleShape)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "DRAKOS",
-                            fontFamily = SpaceGroteskFontFamily,
-                            fontSize = 25.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 3.sp,
-                            color = DrakosBlack
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            color = DrakosRed,
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = "24HS",
-                                fontFamily = SpaceGroteskFontFamily,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = DrakosWhite,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = currentBranch?.name ?: "Terminal Punto de Venta",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = DrakosMutedInk
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Estado de autorización del dispositivo (Seguridad Nivel 3)
                     Surface(

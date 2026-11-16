@@ -31,6 +31,8 @@ import com.example.domain.model.MovementType
 import com.example.domain.model.PaymentMethod
 import com.example.domain.model.PriceRoundingStep
 import com.example.domain.model.ProductWithStock
+import com.example.domain.model.PromoComponentItem
+import com.example.domain.model.PromotionDisplay
 import com.example.domain.model.SaleItemAnalytics
 import com.example.domain.model.UserRole
 import com.example.domain.security.DeviceProvisioningCodec
@@ -108,6 +110,12 @@ class KioscoViewModel(
 
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
     val cart: StateFlow<List<CartItem>> = _cart.asStateFlow()
+
+    private val _appliedPromoDiscount = MutableStateFlow(0.0)
+    val appliedPromoDiscount: StateFlow<Double> = _appliedPromoDiscount.asStateFlow()
+
+    private val _appliedPromoLabels = MutableStateFlow<List<String>>(emptyList())
+    val appliedPromoLabels: StateFlow<List<String>> = _appliedPromoLabels.asStateFlow()
 
     private val _userMessage = MutableStateFlow<String?>(null)
     val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
@@ -266,6 +274,60 @@ class KioscoViewModel(
             repository.getWeeklyOrders(branch?.id ?: 1L)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allPromotions: StateFlow<List<PromotionDisplay>> = combine(
+        repository.getAllPromotions(),
+        rawProductsWithStock
+    ) { promoEntities, products ->
+        val prodMap = products.associateBy { it.productId }
+        promoEntities.map { entity ->
+            val items = entity.itemsSpec.split(",")
+                .mapNotNull { token ->
+                    val parts = token.trim().split(":")
+                    val pid = parts.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+                    val qty = parts.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                    val prod = prodMap[pid] ?: return@mapNotNull null
+                    PromoComponentItem(
+                        productId = prod.productId,
+                        barcode = prod.barcode,
+                        productName = prod.name,
+                        quantity = qty,
+                        unitPrice = prod.sellingPrice,
+                        unitCost = prod.costPrice,
+                        stockAvailable = prod.quantityOnHand
+                    )
+                }
+            val regularPrice = items.sumOf { it.regularSubtotal }
+            val finalPromoPrice = when {
+                entity.fixedPromoPrice != null && entity.fixedPromoPrice > 0.0 ->
+                    entity.fixedPromoPrice.coerceAtMost(regularPrice)
+                entity.discountPercent > 0.0 ->
+                    (regularPrice * (1.0 - entity.discountPercent / 100.0)).coerceAtLeast(0.0)
+                else -> regularPrice
+            }
+            val savings = (regularPrice - finalPromoPrice).coerceAtLeast(0.0)
+            val hasStock = items.isNotEmpty() && items.all { it.stockAvailable >= it.quantity }
+            PromotionDisplay(
+                id = entity.id,
+                title = entity.title,
+                badge = entity.badge,
+                description = entity.description,
+                discountPercent = entity.discountPercent,
+                fixedPromoPrice = entity.fixedPromoPrice,
+                validSchedule = entity.validSchedule,
+                isActive = entity.isActive,
+                items = items,
+                regularPrice = regularPrice,
+                finalPromoPrice = finalPromoPrice,
+                savingsAmount = savings,
+                hasSufficientStock = hasStock
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activePromotions: StateFlow<List<PromotionDisplay>> = allPromotions
+        .map { list -> list.filter { it.isActive } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
         // Inicializar sucursal predeterminada; la sesión de usuario inicia bloqueada hasta validar PIN
         viewModelScope.launch {
@@ -298,6 +360,8 @@ class KioscoViewModel(
     fun switchUser(user: UserProfileEntity) {
         _currentUser.value = user
         _cart.value = emptyList() // Limpiar carrito al cambiar de cajero
+        _appliedPromoDiscount.value = 0.0
+        _appliedPromoLabels.value = emptyList()
         _failedPinAttempts.value = 0
         _lockoutUntilMillis.value = 0L
 
@@ -421,6 +485,8 @@ class KioscoViewModel(
         }
         _selectedBranch.value = branch
         _cart.value = emptyList()
+        _appliedPromoDiscount.value = 0.0
+        _appliedPromoLabels.value = emptyList()
         _userMessage.value = "Sucursal activa: ${branch.name}"
     }
 
@@ -506,6 +572,125 @@ class KioscoViewModel(
 
     fun clearCart() {
         _cart.value = emptyList()
+        _appliedPromoDiscount.value = 0.0
+        _appliedPromoLabels.value = emptyList()
+    }
+
+    fun applyPromotionToCart(promo: PromotionDisplay) {
+        if (!promo.isActive) {
+            _errorMessage.value = "La promoción '${promo.title}' está pausada."
+            return
+        }
+        if (promo.items.isEmpty()) {
+            _errorMessage.value = "La promoción '${promo.title}' no tiene productos configurados."
+            return
+        }
+        val currentList = _cart.value.toMutableList()
+        // Verificar stock total requerido por cada componente
+        for (comp in promo.items) {
+            val existingQty = currentList.find { it.productId == comp.productId }?.quantity ?: 0
+            if (existingQty + comp.quantity > comp.stockAvailable) {
+                _errorMessage.value = "Stock insuficiente de '${comp.productName}' para aplicar '${promo.title}' (Disp: ${comp.stockAvailable})."
+                return
+            }
+        }
+        for (comp in promo.items) {
+            val idx = currentList.indexOfFirst { it.productId == comp.productId }
+            if (idx >= 0) {
+                val existing = currentList[idx]
+                currentList[idx] = existing.copy(quantity = existing.quantity + comp.quantity)
+            } else {
+                currentList.add(
+                    CartItem(
+                        productId = comp.productId,
+                        barcode = comp.barcode,
+                        name = comp.productName,
+                        unitPrice = comp.unitPrice,
+                        unitCost = comp.unitCost,
+                        quantity = comp.quantity,
+                        stockAvailable = comp.stockAvailable
+                    )
+                )
+            }
+        }
+        _cart.value = currentList
+        if (promo.savingsAmount > 0.0) {
+            _appliedPromoDiscount.value = _appliedPromoDiscount.value + promo.savingsAmount
+        }
+        _appliedPromoLabels.value = _appliedPromoLabels.value + promo.title
+        _userMessage.value = if (promo.savingsAmount > 0.0) {
+            "Promo '${promo.title}' aplicada (-$${promo.savingsAmount.toInt()})."
+        } else {
+            "Combo '${promo.title}' agregado al ticket."
+        }
+    }
+
+    fun savePromotion(
+        promoId: Long? = null,
+        title: String,
+        badge: String,
+        description: String,
+        discountPercent: Double,
+        fixedPromoPrice: Double?,
+        itemsSpec: String,
+        validSchedule: String,
+        isActive: Boolean = true
+    ) {
+        val user = _currentUser.value ?: return
+        val branch = _selectedBranch.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Dueño (Nivel 3) pueden crear o editar promociones."
+            return
+        }
+        viewModelScope.launch {
+            repository.savePromotion(
+                promoId = promoId,
+                title = title,
+                badge = badge,
+                description = description,
+                discountPercent = discountPercent,
+                fixedPromoPrice = fixedPromoPrice,
+                itemsSpec = itemsSpec,
+                validSchedule = validSchedule,
+                isActive = isActive,
+                userId = user.id,
+                userName = user.fullName,
+                branchId = branch.id
+            ).fold(
+                onSuccess = { _userMessage.value = "Promoción '$title' guardada en el catálogo POS." },
+                onFailure = { _errorMessage.value = it.message }
+            )
+        }
+    }
+
+    fun togglePromotionActive(promoId: Long, isActive: Boolean) {
+        val user = _currentUser.value ?: return
+        val branch = _selectedBranch.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Nivel 2 o Nivel 3 pueden activar/pausar promociones."
+            return
+        }
+        viewModelScope.launch {
+            repository.togglePromotionActive(promoId, isActive, user.id, user.fullName, branch.id).fold(
+                onSuccess = { _userMessage.value = if (isActive) "Promoción activada." else "Promoción pausada." },
+                onFailure = { _errorMessage.value = it.message }
+            )
+        }
+    }
+
+    fun deletePromotion(promoId: Long) {
+        val user = _currentUser.value ?: return
+        val branch = _selectedBranch.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Nivel 2 o Nivel 3 pueden eliminar promociones."
+            return
+        }
+        viewModelScope.launch {
+            repository.deletePromotion(promoId, user.id, user.fullName, branch.id).fold(
+                onSuccess = { _userMessage.value = "Promoción eliminada." },
+                onFailure = { _errorMessage.value = it.message }
+            )
+        }
     }
 
     fun processSale(
@@ -535,6 +720,8 @@ class KioscoViewModel(
             result.fold(
                 onSuccess = { sale ->
                     _cart.value = emptyList()
+                    _appliedPromoDiscount.value = 0.0
+                    _appliedPromoLabels.value = emptyList()
                     _userMessage.value = "Venta ${sale.receiptNumber} confirmada ($ ${sale.totalAmount})"
                     syncIfSignedIn { it.syncSale(sale, branch.name, user.fullName) }
                     onSuccess(sale)

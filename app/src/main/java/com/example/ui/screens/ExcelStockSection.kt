@@ -307,17 +307,18 @@ fun ExcelStockSection(
 
         // Grilla tipo Excel con desplazamiento horizontal y vertical
         Surface(
-            border = BorderStroke(1.dp, DrakosBlack),
-            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, DrakosBorder),
+            shape = RoundedCornerShape(14.dp),
             color = DrakosWhite,
+            shadowElevation = 1.dp,
             modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
             Column(modifier = Modifier.horizontalScroll(hScroll)) {
                 // Encabezado fijo de la planilla
                 Row(
                     modifier = Modifier
-                        .background(DrakosBlack)
-                        .padding(vertical = 8.dp)
+                        .background(com.example.ui.theme.DrakosDarkGray)
+                        .padding(vertical = 10.dp)
                 ) {
                     ExcelHeaderCell("SKU", 86.dp)
                     ExcelHeaderCell("PRODUCTO", 180.dp)

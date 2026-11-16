@@ -82,41 +82,52 @@ fun TransfersScreen(
             .background(com.example.ui.theme.DrakosCanvas)
             .padding(14.dp)
     ) {
-        // Cabecera
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Cabecera SaaS
+        Surface(
+            color = com.example.ui.theme.DrakosWhite,
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.DrakosHairline),
+            shadowElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column {
-                Text(
-                    text = "Transferencias Inter-Sucursales",
-                    fontFamily = com.example.ui.theme.SpaceGroteskFontFamily,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandNavy900
-                )
-                Text(
-                    text = "Movimiento de mercadería y seguimiento en tránsito",
-                    fontSize = 12.sp,
-                    color = BrandSlate700
-                )
-            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Transferencias Inter-Sucursales",
+                        fontFamily = com.example.ui.theme.SpaceGroteskFontFamily,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = com.example.ui.theme.DrakosDarkGray
+                    )
+                    Text(
+                        text = "Movimiento de mercadería y seguimiento en tránsito",
+                        fontSize = 11.sp,
+                        color = com.example.ui.theme.DrakosMutedGray
+                    )
+                }
 
-            if (currentUser?.role != UserRole.EMPLOYEE) {
-                Button(
-                    onClick = { showNewTransferModal = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                    modifier = Modifier.testTag("new_transfer_button")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Solicitar", fontSize = 12.sp)
+                if (currentUser?.role != UserRole.EMPLOYEE) {
+                    Button(
+                        onClick = { showNewTransferModal = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.DrakosRed),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("new_transfer_button")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Solicitar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         if (activeList.isEmpty()) {
             Column(

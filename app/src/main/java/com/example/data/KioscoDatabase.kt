@@ -17,6 +17,7 @@ import com.example.data.dao.CompanySettingsDao
 import com.example.data.dao.ExpenseDao
 import com.example.data.dao.InventoryDao
 import com.example.data.dao.ProductDao
+import com.example.data.dao.PromotionDao
 import com.example.data.dao.SaleDao
 import com.example.data.dao.SupplierInvoiceDao
 import com.example.data.dao.TransferDao
@@ -35,6 +36,7 @@ import com.example.data.entity.ExpenseEntity
 import com.example.data.entity.InventoryMovementEntity
 import com.example.data.entity.ProductBatchEntity
 import com.example.data.entity.ProductEntity
+import com.example.data.entity.PromotionEntity
 import com.example.data.entity.SaleEntity
 import com.example.data.entity.SaleItemEntity
 import com.example.data.entity.StockTransferEntity
@@ -77,9 +79,10 @@ import kotlinx.coroutines.launch
         AuthorizedDeviceEntity::class,
         BranchMessageEntity::class,
         SupplierInvoiceEntity::class,
-        WeeklyOrderEntity::class
+        WeeklyOrderEntity::class,
+        PromotionEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -100,6 +103,7 @@ abstract class KioscoDatabase : RoomDatabase() {
     abstract fun branchMessageDao(): BranchMessageDao
     abstract fun supplierInvoiceDao(): SupplierInvoiceDao
     abstract fun weeklyOrderDao(): WeeklyOrderDao
+    abstract fun promotionDao(): PromotionDao
 
     companion object {
         @Volatile
@@ -238,6 +242,31 @@ abstract class KioscoDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `promotions` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `badge` TEXT NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `discountPercent` REAL NOT NULL,
+                        `fixedPromoPrice` REAL,
+                        `itemsSpec` TEXT NOT NULL,
+                        `validSchedule` TEXT NOT NULL,
+                        `isActive` INTEGER NOT NULL,
+                        `createdByUserId` INTEGER NOT NULL,
+                        `createdByUserName` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_promotions_isActive` ON `promotions` (`isActive`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_promotions_createdAt` ON `promotions` (`createdAt`)")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): KioscoDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -245,7 +274,7 @@ abstract class KioscoDatabase : RoomDatabase() {
                     KioscoDatabase::class.java,
                     "kioscopos_master.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(DatabaseCallback(scope))
                     .build()
                 INSTANCE = instance
@@ -278,6 +307,9 @@ abstract class KioscoDatabase : RoomDatabase() {
                     }
                     if (database.branchMessageDao().countMessages() == 0) {
                         seedInitialBranchMessages(database)
+                    }
+                    if (database.promotionDao().countPromotions() == 0) {
+                        seedInitialPromotions(database)
                     }
                     // Migrar PINs legados en texto plano a hash SHA-256
                     val existingUsers = database.userProfileDao().getAllUsersSync()
@@ -504,6 +536,52 @@ abstract class KioscoDatabase : RoomDatabase() {
                 )
             )
             db.branchMessageDao().insertMessages(msgs)
+        }
+
+        suspend fun seedInitialPromotions(db: KioscoDatabase) {
+            val now = System.currentTimeMillis()
+            val promos = listOf(
+                PromotionEntity(
+                    title = "Desayuno (Havanna + Coca)",
+                    badge = "COMBO",
+                    description = "Alfajor Havanna 70% + Coca-Cola 500ml con 10% OFF",
+                    discountPercent = 10.0,
+                    fixedPromoPrice = null,
+                    itemsSpec = "1:1,5:1",
+                    validSchedule = "24hs • Todos los días",
+                    isActive = true,
+                    createdByUserId = 1L,
+                    createdByUserName = "Drakos Store",
+                    createdAt = now
+                ),
+                PromotionEntity(
+                    title = "2x Beldent Menta",
+                    badge = "DUO",
+                    description = "2 unidades de Chicles Beldent Menta con 15% OFF",
+                    discountPercent = 15.0,
+                    fixedPromoPrice = null,
+                    itemsSpec = "11:2",
+                    validSchedule = "24hs • Todos los días",
+                    isActive = true,
+                    createdByUserId = 1L,
+                    createdByUserName = "Drakos Store",
+                    createdAt = now - 1000L
+                ),
+                PromotionEntity(
+                    title = "Red Bull + Chocolinas",
+                    badge = "NOCHE",
+                    description = "Energizante Red Bull 250ml + Galletitas Chocolinas 250g",
+                    discountPercent = 12.0,
+                    fixedPromoPrice = null,
+                    itemsSpec = "10:1,19:1",
+                    validSchedule = "Turno Tarde / Noche 24hs",
+                    isActive = true,
+                    createdByUserId = 1L,
+                    createdByUserName = "Drakos Store",
+                    createdAt = now - 2000L
+                )
+            )
+            db.promotionDao().insertPromotions(promos)
         }
     }
 }

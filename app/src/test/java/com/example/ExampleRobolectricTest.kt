@@ -957,4 +957,63 @@ class ExampleRobolectricTest {
         assertEquals(5L, decoded.assignedBranchId)
         assertTrue(decoded.profiles.any { it.username == "lucas.k05" })
     }
+
+    @Test
+    fun `test drakos promotions save, toggle active, delete, and audit logging`() = runBlocking {
+        // Validación de campos requeridos
+        val invalidBlank = repository.savePromotion(
+            title = " ",
+            badge = "COMBO",
+            description = "",
+            discountPercent = 10.0,
+            fixedPromoPrice = null,
+            itemsSpec = "1:2",
+            validSchedule = "24hs",
+            isActive = true,
+            userId = 1L,
+            userName = "Roberto Dueño",
+            branchId = 1L
+        )
+        assertTrue(invalidBlank.isFailure)
+
+        // Creación de combo con precio fijo
+        val createRes = repository.savePromotion(
+            title = "Dúo Nocturno Drakos",
+            badge = "NOCHE",
+            description = "2 Energizantes + Alfajor",
+            discountPercent = 0.0,
+            fixedPromoPrice = 4200.0,
+            itemsSpec = "1:2,2:1",
+            validSchedule = "22:00 a 06:00",
+            isActive = true,
+            userId = 2L,
+            userName = "Carlos Encargado",
+            branchId = 1L
+        )
+        assertTrue(createRes.isSuccess)
+        val promoId = createRes.getOrNull()!!
+
+        val allAfterCreate = repository.getAllPromotions().first()
+        assertEquals(1, allAfterCreate.size)
+        assertEquals("Dúo Nocturno Drakos", allAfterCreate.first().title)
+        assertEquals("NOCHE", allAfterCreate.first().badge)
+        assertEquals(4200.0, allAfterCreate.first().fixedPromoPrice!!, 0.01)
+
+        val activeAfterCreate = repository.getActivePromotions().first()
+        assertEquals(1, activeAfterCreate.size)
+
+        // Pausar promoción -> desaparece de activas en POS pero sigue en catálogo
+        assertTrue(repository.togglePromotionActive(promoId, false, 2L, "Carlos Encargado", 1L).isSuccess)
+        assertTrue(repository.getActivePromotions().first().isEmpty())
+        assertFalse(repository.getAllPromotions().first().first().isActive)
+
+        // Eliminar promoción -> desaparece del catálogo y registra auditoría
+        assertTrue(repository.deletePromotion(promoId, 1L, "Roberto Dueño", 1L).isSuccess)
+        assertTrue(repository.getAllPromotions().first().isEmpty())
+
+        val auditActions = repository.getAuditLogs().first().map { it.action }
+        assertTrue(auditActions.contains("PROMOTION_CREATED"))
+        assertTrue(auditActions.contains("PROMOTION_TOGGLED"))
+        assertTrue(auditActions.contains("PROMOTION_DELETED"))
+    }
 }

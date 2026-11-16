@@ -324,3 +324,23 @@ data class WeeklyOrderEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Entity(
+    tableName = "promotions",
+    indices = [Index(value = ["isActive"]), Index(value = ["createdAt"])]
+)
+data class PromotionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val badge: String = "COMBO",
+    val description: String = "",
+    val discountPercent: Double = 0.0,
+    val fixedPromoPrice: Double? = null,
+    val itemsSpec: String, // Formato "productId:qty,productId:qty"
+    val validSchedule: String = "24hs • Todos los días",
+    val isActive: Boolean = true,
+    val createdByUserId: Long = 1L,
+    val createdByUserName: String = "Sistema Drakos",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+

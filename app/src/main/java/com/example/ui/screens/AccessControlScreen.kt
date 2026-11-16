@@ -173,8 +173,10 @@ fun AccessControlScreen(
             ) {
                 item {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DrakosBlack),
-                        shape = RoundedCornerShape(14.dp)
+                        colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+                        border = BorderStroke(1.dp, DrakosBorder),
+                        shape = RoundedCornerShape(14.dp),
+                        elevation = CardDefaults.cardElevation(1.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(
@@ -188,12 +190,12 @@ fun AccessControlScreen(
                                         fontFamily = SpaceGroteskFontFamily,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
-                                        color = DrakosWhite
+                                        color = DrakosBlack
                                     )
                                     Text(
                                         text = "Si está activo, ningún teléfono nuevo puede operar Nivel 1 o 2 sin autorización tuya.",
                                         fontSize = 11.sp,
-                                        color = Color(0xFFD4D4D8)
+                                        color = DrakosMutedInk
                                     )
                                 }
                                 Switch(
@@ -210,8 +212,9 @@ fun AccessControlScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             Surface(
-                                color = Color(0xFF1F1F27),
-                                shape = RoundedCornerShape(8.dp),
+                                color = DrakosCanvas,
+                                border = BorderStroke(1.dp, DrakosBorder),
+                                shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -220,18 +223,19 @@ fun AccessControlScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text("Esta Terminal Central:", fontSize = 10.sp, color = Color(0xFFA1A1AA))
+                                        Text("Esta Terminal Central:", fontSize = 10.sp, color = DrakosMutedInk)
                                         Text(
                                             text = currentDeviceId.ifBlank { "DRK-PRINCIPAL" },
                                             fontFamily = JetBrainsMonoFontFamily,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
-                                            color = DrakosWhite
+                                            color = DrakosBlack
                                         )
                                     }
                                     Button(
                                         onClick = { showInviteDeviceDialog = true },
                                         colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
+                                        shape = RoundedCornerShape(10.dp),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                         modifier = Modifier
                                             .heightIn(min = 48.dp)

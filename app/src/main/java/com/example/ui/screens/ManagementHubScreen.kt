@@ -65,70 +65,78 @@ fun ManagementHubScreen(
             .fillMaxSize()
             .background(DrakosCanvas)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(DrakosWhite)
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val chipColors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = DrakosBlack,
-                selectedLabelColor = DrakosWhite,
-                selectedLeadingIconColor = DrakosRed
-            )
-            FilterChip(
-                selected = selectedSubTab == 0,
-                onClick = { onSelectSubTab(0) },
-                colors = chipColors,
-                leadingIcon = { Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                label = { Text("Transferencias", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                modifier = Modifier.testTag("mgmt_tab_transfers")
-            )
-            FilterChip(
-                selected = selectedSubTab == 1,
-                onClick = { onSelectSubTab(1) },
-                colors = chipColors,
-                leadingIcon = { Icon(Icons.Default.Forum, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                label = { Text("Locales", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                modifier = Modifier.testTag("mgmt_tab_comms")
-            )
-            if (userLevel >= 3) {
-                FilterChip(
-                    selected = selectedSubTab == 4,
-                    onClick = { onSelectSubTab(4) },
-                    colors = chipColors,
-                    leadingIcon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text("Accesos y Equipos", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    modifier = Modifier.testTag("mgmt_tab_access")
+        Column(modifier = Modifier.fillMaxWidth().background(DrakosWhite)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val chipColors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = DrakosRed,
+                    selectedLabelColor = DrakosWhite,
+                    selectedLeadingIconColor = DrakosWhite
                 )
                 FilterChip(
-                    selected = selectedSubTab == 2,
-                    onClick = { onSelectSubTab(2) },
+                    selected = selectedSubTab == 0,
+                    onClick = { onSelectSubTab(0) },
                     colors = chipColors,
-                    leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text("Gastos", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    modifier = Modifier.testTag("mgmt_tab_expenses")
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = { Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    label = { Text("Transferencias", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("mgmt_tab_transfers")
                 )
                 FilterChip(
-                    selected = selectedSubTab == 3,
-                    onClick = { onSelectSubTab(3) },
+                    selected = selectedSubTab == 1,
+                    onClick = { onSelectSubTab(1) },
                     colors = chipColors,
-                    leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text("Auditoría", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    modifier = Modifier.testTag("mgmt_tab_audit")
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = { Icon(Icons.Default.Forum, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    label = { Text("Locales", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("mgmt_tab_comms")
+                )
+                if (userLevel >= 3) {
+                    FilterChip(
+                        selected = selectedSubTab == 4,
+                        onClick = { onSelectSubTab(4) },
+                        colors = chipColors,
+                        shape = RoundedCornerShape(10.dp),
+                        leadingIcon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        label = { Text("Accesos y Equipos", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.testTag("mgmt_tab_access")
+                    )
+                    FilterChip(
+                        selected = selectedSubTab == 2,
+                        onClick = { onSelectSubTab(2) },
+                        colors = chipColors,
+                        shape = RoundedCornerShape(10.dp),
+                        leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        label = { Text("Gastos", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.testTag("mgmt_tab_expenses")
+                    )
+                    FilterChip(
+                        selected = selectedSubTab == 3,
+                        onClick = { onSelectSubTab(3) },
+                        colors = chipColors,
+                        shape = RoundedCornerShape(10.dp),
+                        leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        label = { Text("Auditoría", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.testTag("mgmt_tab_audit")
+                    )
+                }
+                FilterChip(
+                    selected = selectedSubTab == 5,
+                    onClick = { onSelectSubTab(5) },
+                    colors = chipColors,
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = { Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    label = { Text("Nube Sync", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("mgmt_tab_cloud")
                 )
             }
-            FilterChip(
-                selected = selectedSubTab == 5,
-                onClick = { onSelectSubTab(5) },
-                colors = chipColors,
-                leadingIcon = { Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                label = { Text("Nube Sync", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                modifier = Modifier.testTag("mgmt_tab_cloud")
-            )
+            androidx.compose.material3.HorizontalDivider(color = com.example.ui.theme.DrakosHairline)
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {

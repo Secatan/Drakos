@@ -97,6 +97,34 @@ data class KioscoPromo(
     val items: List<CartItem>
 )
 
+data class PromoComponentItem(
+    val productId: Long,
+    val barcode: String,
+    val productName: String,
+    val quantity: Int,
+    val unitPrice: Double,
+    val unitCost: Double,
+    val stockAvailable: Int
+) {
+    val regularSubtotal: Double get() = unitPrice * quantity
+}
+
+data class PromotionDisplay(
+    val id: Long,
+    val title: String,
+    val badge: String,
+    val description: String,
+    val discountPercent: Double,
+    val fixedPromoPrice: Double?,
+    val validSchedule: String,
+    val isActive: Boolean,
+    val items: List<PromoComponentItem>,
+    val regularPrice: Double,
+    val finalPromoPrice: Double,
+    val savingsAmount: Double,
+    val hasSufficientStock: Boolean
+)
+
 data class BatchExpiryItem(
     val batchId: Long = 0L,
     val productId: Long,
