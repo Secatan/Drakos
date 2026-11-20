@@ -45,9 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,7 +88,10 @@ fun ExcelStockSection(
     val allBatches by viewModel.allActiveBatches.collectAsStateWithLifecycle()
     val allAnalytics by viewModel.allSaleAnalytics.collectAsStateWithLifecycle()
 
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val clipboardManager = remember(context) {
+        context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    }
     val homeBranchId = currentBranch?.id ?: 1L
     var viewedBranchId by remember(homeBranchId) { mutableLongStateOf(homeBranchId) }
     var filterMode by remember { mutableIntStateOf(0) } // 0: Todos, 1: Bajo Mínimo, 2: Vencen <= 20d, 3: Sin Stock
@@ -162,7 +164,9 @@ fun ExcelStockSection(
                             appendLine("${r.sku};${r.name};${r.categoryName};${r.quantityOnHand};${r.minStock};${r.weeklySoldQty};${r.suggestedWeeklyOrder};${r.expiryLabel};${r.healthStatus.label}")
                         }
                     }
-                    clipboard.setText(AnnotatedString(csv))
+                    clipboardManager.setPrimaryClip(
+                        android.content.ClipData.newPlainText("Drakos_Stock", csv)
+                    )
                     viewModel.notifyInfo("Planilla copiada (${filteredRows.size} filas) lista para pegar en Excel.")
                 },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),

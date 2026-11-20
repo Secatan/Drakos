@@ -56,6 +56,9 @@ import com.example.domain.security.PinHasher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.Locale
 
 @Database(
     entities = [
@@ -108,6 +111,7 @@ abstract class KioscoDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: KioscoDatabase? = null
+        private val seedMutex = Mutex()
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -290,7 +294,7 @@ abstract class KioscoDatabase : RoomDatabase() {
             super.onCreate(db)
             INSTANCE?.let { database ->
                 scope.launch(Dispatchers.IO) {
-                    populateInitialData(database)
+                    ensureDatabaseReady(database)
                 }
             }
         }
@@ -299,26 +303,35 @@ abstract class KioscoDatabase : RoomDatabase() {
             super.onOpen(db)
             INSTANCE?.let { database ->
                 scope.launch(Dispatchers.IO) {
-                    if (database.companySettingsDao().getSettingsOnce() == null) {
-                        database.companySettingsDao().upsertSettings(CompanySettingsEntity())
-                    }
-                    if (database.batchDao().countBatches() == 0) {
-                        seedInitialBatches(database)
-                    }
-                    if (database.branchMessageDao().countMessages() == 0) {
-                        seedInitialBranchMessages(database)
-                    }
-                    if (database.promotionDao().countPromotions() == 0) {
-                        seedInitialPromotions(database)
-                    }
-                    // Migrar PINs legados en texto plano a hash SHA-256
-                    val existingUsers = database.userProfileDao().getAllUsersSync()
-                    val unhashed = existingUsers.filter { !PinHasher.isHashed(it.pinCode) }
-                    if (unhashed.isNotEmpty()) {
-                        database.userProfileDao().insertUsers(
-                            unhashed.map { it.copy(pinCode = PinHasher.hash(it.username, it.pinCode)) }
-                        )
-                    }
+                    ensureDatabaseReady(database)
+                }
+            }
+        }
+
+        private suspend fun ensureDatabaseReady(database: KioscoDatabase) {
+            seedMutex.withLock {
+                if (database.userProfileDao().getAllUsersAdminSync().isEmpty()) {
+                    populateInitialData(database)
+                }
+                if (database.companySettingsDao().getSettingsOnce() == null) {
+                    database.companySettingsDao().upsertSettings(CompanySettingsEntity())
+                }
+                if (database.batchDao().countBatches() == 0) {
+                    seedInitialBatches(database)
+                }
+                if (database.branchMessageDao().countMessages() == 0) {
+                    seedInitialBranchMessages(database)
+                }
+                if (database.promotionDao().countPromotions() == 0) {
+                    seedInitialPromotions(database)
+                }
+                // Migrar PINs legados en texto plano a hash SHA-256 (incluye perfiles inactivos)
+                val existingUsers = database.userProfileDao().getAllUsersAdminSync()
+                val unhashed = existingUsers.filter { !PinHasher.isHashed(it.pinCode) }
+                if (unhashed.isNotEmpty()) {
+                    database.userProfileDao().insertUsers(
+                        unhashed.map { it.copy(pinCode = PinHasher.hash(it.username, it.pinCode)) }
+                    )
                 }
             }
         }
@@ -495,12 +508,12 @@ abstract class KioscoDatabase : RoomDatabase() {
                         ProductBatchEntity(
                             branchId = b.toLong(),
                             productId = pid.toLong(),
-                            batchNumber = "LOT-${String.format("%02d", b)}${String.format("%03d", pid)}",
+                            batchNumber = "LOT-${String.format(Locale.US, "%02d", b)}${String.format(Locale.US, "%03d", pid)}",
                             expiryDateMillis = now + daysOffset * dayMs,
                             initialQuantity = qty,
                             remainingQuantity = qty,
                             supplierId = ((pid % 5) + 1).toLong(),
-                            invoiceRef = "REM-INI-${String.format("%02d", b)}",
+                            invoiceRef = "REM-INI-${String.format(Locale.US, "%02d", b)}",
                             receivedAt = now - 5 * dayMs
                         )
                     )

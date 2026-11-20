@@ -36,6 +36,7 @@ import com.example.domain.model.PromotionDisplay
 import com.example.domain.model.SaleItemAnalytics
 import com.example.domain.model.UserRole
 import com.example.domain.security.DeviceProvisioningCodec
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,6 +117,8 @@ class KioscoViewModel(
 
     private val _appliedPromoLabels = MutableStateFlow<List<String>>(emptyList())
     val appliedPromoLabels: StateFlow<List<String>> = _appliedPromoLabels.asStateFlow()
+
+    private val appliedPromosInCart = MutableStateFlow<List<PromotionDisplay>>(emptyList())
 
     private val _userMessage = MutableStateFlow<String?>(null)
     val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
@@ -360,6 +363,7 @@ class KioscoViewModel(
     fun switchUser(user: UserProfileEntity) {
         _currentUser.value = user
         _cart.value = emptyList() // Limpiar carrito al cambiar de cajero
+        appliedPromosInCart.value = emptyList()
         _appliedPromoDiscount.value = 0.0
         _appliedPromoLabels.value = emptyList()
         _failedPinAttempts.value = 0
@@ -464,6 +468,9 @@ class KioscoViewModel(
         val branchId = _selectedBranch.value?.id ?: 1L
         _currentUser.value = null
         _cart.value = emptyList()
+        appliedPromosInCart.value = emptyList()
+        _appliedPromoDiscount.value = 0.0
+        _appliedPromoLabels.value = emptyList()
         if (prev != null) {
             viewModelScope.launch {
                 repository.recordSecurityAudit(
@@ -485,6 +492,7 @@ class KioscoViewModel(
         }
         _selectedBranch.value = branch
         _cart.value = emptyList()
+        appliedPromosInCart.value = emptyList()
         _appliedPromoDiscount.value = 0.0
         _appliedPromoLabels.value = emptyList()
         _userMessage.value = "Sucursal activa: ${branch.name}"
@@ -563,17 +571,49 @@ class KioscoViewModel(
                 currentList[index] = item.copy(quantity = newQty)
             }
             _cart.value = currentList
+            recomputeAppliedPromotions()
         }
     }
 
     fun removeFromCart(productId: Long) {
         _cart.value = _cart.value.filter { it.productId != productId }
+        recomputeAppliedPromotions()
     }
 
     fun clearCart() {
         _cart.value = emptyList()
+        appliedPromosInCart.value = emptyList()
         _appliedPromoDiscount.value = 0.0
         _appliedPromoLabels.value = emptyList()
+    }
+
+    private fun recomputeAppliedPromotions() {
+        val remaining = _cart.value.associate { it.productId to it.quantity }.toMutableMap()
+        val keptPromos = mutableListOf<PromotionDisplay>()
+        var totalSavings = 0.0
+        val labels = mutableListOf<String>()
+
+        for (promo in appliedPromosInCart.value) {
+            val requiredByProduct = promo.items.groupBy { it.productId }
+                .mapValues { (_, items) -> items.sumOf { it.quantity } }
+            val canStillApply = requiredByProduct.isNotEmpty() && requiredByProduct.all { (pid, reqQty) ->
+                (remaining[pid] ?: 0) >= reqQty
+            }
+            if (canStillApply) {
+                requiredByProduct.forEach { (pid, reqQty) ->
+                    remaining[pid] = (remaining[pid] ?: 0) - reqQty
+                }
+                keptPromos.add(promo)
+                if (promo.savingsAmount > 0.0) {
+                    totalSavings += promo.savingsAmount
+                }
+                labels.add(promo.title)
+            }
+        }
+
+        appliedPromosInCart.value = keptPromos
+        _appliedPromoDiscount.value = totalSavings
+        _appliedPromoLabels.value = labels
     }
 
     fun applyPromotionToCart(promo: PromotionDisplay) {
@@ -614,10 +654,8 @@ class KioscoViewModel(
             }
         }
         _cart.value = currentList
-        if (promo.savingsAmount > 0.0) {
-            _appliedPromoDiscount.value = _appliedPromoDiscount.value + promo.savingsAmount
-        }
-        _appliedPromoLabels.value = _appliedPromoLabels.value + promo.title
+        appliedPromosInCart.value = appliedPromosInCart.value + promo
+        recomputeAppliedPromotions()
         _userMessage.value = if (promo.savingsAmount > 0.0) {
             "Promo '${promo.title}' aplicada (-$${promo.savingsAmount.toInt()})."
         } else {
@@ -634,7 +672,8 @@ class KioscoViewModel(
         fixedPromoPrice: Double?,
         itemsSpec: String,
         validSchedule: String,
-        isActive: Boolean = true
+        isActive: Boolean = true,
+        onSuccess: () -> Unit = {}
     ) {
         val user = _currentUser.value ?: return
         val branch = _selectedBranch.value ?: return
@@ -657,7 +696,10 @@ class KioscoViewModel(
                 userName = user.fullName,
                 branchId = branch.id
             ).fold(
-                onSuccess = { _userMessage.value = "Promoción '$title' guardada en el catálogo POS." },
+                onSuccess = {
+                    _userMessage.value = "Promoción '$title' guardada en el catálogo POS."
+                    onSuccess()
+                },
                 onFailure = { _errorMessage.value = it.message }
             )
         }
@@ -696,6 +738,7 @@ class KioscoViewModel(
     fun processSale(
         paymentMethod: PaymentMethod,
         discount: Double = 0.0,
+        accountHolder: String? = null,
         onSuccess: (SaleEntity) -> Unit
     ) {
         val branch = _selectedBranch.value ?: return
@@ -706,6 +749,10 @@ class KioscoViewModel(
             _errorMessage.value = "El carrito de ventas está vacío."
             return
         }
+        if (paymentMethod == PaymentMethod.ACCOUNT && accountHolder.isNullOrBlank()) {
+            _errorMessage.value = "Debe ingresar el titular para ventas en Cuenta Corriente (Fiado)."
+            return
+        }
 
         viewModelScope.launch {
             val result = repository.recordSale(
@@ -714,12 +761,14 @@ class KioscoViewModel(
                 userName = user.fullName,
                 cartItems = items,
                 paymentMethod = paymentMethod,
-                discount = discount
+                discount = discount,
+                accountHolder = accountHolder
             )
 
             result.fold(
                 onSuccess = { sale ->
                     _cart.value = emptyList()
+                    appliedPromosInCart.value = emptyList()
                     _appliedPromoDiscount.value = 0.0
                     _appliedPromoLabels.value = emptyList()
                     _userMessage.value = "Venta ${sale.receiptNumber} confirmada ($ ${sale.totalAmount})"
@@ -819,6 +868,10 @@ class KioscoViewModel(
 
     fun approveCashDifference(sessionId: Long, notes: String) {
         val user = _currentUser.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden aprobar diferencias de caja."
+            return
+        }
         viewModelScope.launch {
             val res = repository.approveCashDifference(sessionId, notes, user.id, user.fullName)
             res.fold(
@@ -864,6 +917,10 @@ class KioscoViewModel(
     fun createTransfer(targetBranchId: Long, productId: Long, quantity: Int, notes: String) {
         val sourceBranch = _selectedBranch.value ?: return
         val user = _currentUser.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden solicitar transferencias."
+            return
+        }
 
         viewModelScope.launch {
             val res = repository.createTransferRequest(
@@ -878,7 +935,8 @@ class KioscoViewModel(
             res.fold(
                 onSuccess = { transfer ->
                     _userMessage.value = "Transferencia solicitada hacia la sucursal de destino."
-                    syncIfSignedIn { it.syncTransfer(transfer, "Transferencia Sucursal ${sourceBranch.id} -> $targetBranchId", quantity) }
+                    val (summary, totalQty) = repository.buildTransferCloudPayloadInfo(transfer)
+                    syncIfSignedIn { it.syncTransfer(transfer, summary, totalQty) }
                 },
                 onFailure = {
                     _errorMessage.value = it.message
@@ -889,16 +947,21 @@ class KioscoViewModel(
 
     fun dispatchTransfer(transfer: StockTransferEntity) {
         val user = _currentUser.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden despachar transferencias."
+            return
+        }
         viewModelScope.launch {
             val res = repository.dispatchTransfer(transfer, user.id, user.fullName)
             res.fold(
                 onSuccess = {
                     _userMessage.value = "Mercadería despachada. Stock restado de origen y colocado en tránsito."
+                    val (summary, totalQty) = repository.buildTransferCloudPayloadInfo(transfer)
                     syncIfSignedIn {
                         it.syncTransfer(
                             transfer.copy(status = com.example.domain.model.TransferStatus.DISPATCHED),
-                            "Transferencia #${transfer.id}",
-                            1
+                            summary,
+                            totalQty
                         )
                     }
                 },
@@ -911,16 +974,21 @@ class KioscoViewModel(
 
     fun receiveTransfer(transfer: StockTransferEntity) {
         val user = _currentUser.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden recibir transferencias."
+            return
+        }
         viewModelScope.launch {
             val res = repository.receiveTransfer(transfer, user.id, user.fullName)
             res.fold(
                 onSuccess = {
                     _userMessage.value = "Transferencia recibida. Mercadería incorporada al stock local."
+                    val (summary, totalQty) = repository.buildTransferCloudPayloadInfo(transfer)
                     syncIfSignedIn {
                         it.syncTransfer(
                             transfer.copy(status = com.example.domain.model.TransferStatus.RECEIVED),
-                            "Transferencia #${transfer.id}",
-                            1
+                            summary,
+                            totalQty
                         )
                     }
                 },
@@ -936,6 +1004,10 @@ class KioscoViewModel(
     fun registerExpense(category: ExpenseCategory, amount: Double, description: String, source: String) {
         val branch = _selectedBranch.value ?: return
         val user = _currentUser.value ?: return
+        if (user.role != UserRole.OWNER) {
+            _errorMessage.value = "Solo el Propietario (Nivel 3) puede registrar gastos operativos."
+            return
+        }
 
         viewModelScope.launch {
             val res = repository.registerExpense(
@@ -963,6 +1035,10 @@ class KioscoViewModel(
 
     fun voidSale(saleId: Long, reason: String) {
         val user = _currentUser.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden anular ventas."
+            return
+        }
         viewModelScope.launch {
             val res = repository.voidSale(saleId, reason, user.id, user.fullName)
             res.fold(
@@ -1022,6 +1098,10 @@ class KioscoViewModel(
 
     fun writeOffExpiredBatch(batchId: Long, quantity: Int, notes: String) {
         val user = _currentUser.value ?: return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden dar de baja lotes vencidos."
+            return
+        }
         viewModelScope.launch {
             val res = repository.writeOffExpiredBatch(
                 batchId = batchId,
@@ -1097,7 +1177,10 @@ class KioscoViewModel(
         }
         viewModelScope.launch {
             var successUnits = 0
-            lines.forEach { (productId, qty, cost) ->
+            val baseStamp = System.currentTimeMillis()
+            val effectiveInvoice = invoiceRef.ifBlank { "ING-${baseStamp % 10000}" }
+            val batchPrefix = "LOT-${baseStamp % 100000}"
+            lines.forEachIndexed { idx, (productId, qty, cost) ->
                 if (qty > 0) {
                     val res = repository.receiveGoodsFromSupplier(
                         branchId = branch.id,
@@ -1105,16 +1188,20 @@ class KioscoViewModel(
                         productId = productId,
                         quantity = qty,
                         unitCost = cost,
-                        invoiceRef = invoiceRef.ifBlank { "ING-${System.currentTimeMillis() % 10000}" },
+                        invoiceRef = effectiveInvoice,
                         userId = user.id,
                         userName = user.fullName,
-                        batchNumber = "LOT-${System.currentTimeMillis() % 100000}",
-                        expiryDateMillis = System.currentTimeMillis() + 90L * 86_400_000L
+                        batchNumber = "$batchPrefix-${idx + 1}",
+                        expiryDateMillis = baseStamp + 90L * 86_400_000L
                     )
                     if (res.isSuccess) successUnits += qty
                 }
             }
-            _userMessage.value = "Ingreso por lote confirmado: +$successUnits unidades sumadas al stock local."
+            if (successUnits > 0) {
+                _userMessage.value = "Ingreso por lote confirmado: +$successUnits unidades sumadas al stock local."
+            } else {
+                _errorMessage.value = "No se pudo registrar ninguna unidad del lote."
+            }
         }
     }
 
@@ -1386,7 +1473,9 @@ class KioscoViewModel(
                 }
                 launch {
                     cloudRepo.observeCloudDevices(uid)
-                        .catch { }
+                        .catch { err ->
+                            _cloudAccessSyncStatus.value = "Error leyendo terminales en nube: ${err.localizedMessage ?: err.message}"
+                        }
                         .collect { cloudDevices ->
                             val localDevices = cloudDevices.map { cd ->
                                 AuthorizedDeviceEntity(
@@ -1608,7 +1697,10 @@ class KioscoViewModel(
 
     fun markInvoicePaid(invoiceId: Long) {
         val user = _currentUser.value ?: return
-        if (user.role.level < 2) return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden marcar facturas como pagadas."
+            return
+        }
         viewModelScope.launch {
             repository.markSupplierInvoicePaid(invoiceId, user.id, user.fullName).fold(
                 onSuccess = { _userMessage.value = "Factura marcada como pagada." },
@@ -1653,7 +1745,10 @@ class KioscoViewModel(
 
     fun markWeeklyOrderReceived(orderId: Long) {
         val user = _currentUser.value ?: return
-        if (user.role.level < 2) return
+        if (user.role.level < 2) {
+            _errorMessage.value = "Solo Encargado (Nivel 2) o Propietario (Nivel 3) pueden confirmar pedidos semanales."
+            return
+        }
         viewModelScope.launch {
             repository.updateWeeklyOrderStatus(orderId, "RECEIVED", user.id, user.fullName).fold(
                 onSuccess = { _userMessage.value = "Pedido semanal marcado como recibido." },
@@ -1778,23 +1873,24 @@ class KioscoViewModel(
         }
         if (!signedIn) return
         viewModelScope.launch {
-            runCatching { block(cloudRepo) }
-                .onSuccess { res ->
-                    res.onFailure { err ->
-                        val msg = err.localizedMessage ?: err.message ?: "Error al sincronizar con Firestore."
-                        _cloudAccessSyncStatus.value = "Error nube: $msg"
-                        if (reportError) {
-                            _errorMessage.value = "Guardado localmente, pero falló subida a nube: $msg"
-                        }
-                    }
-                }
-                .onFailure { err ->
-                    val msg = err.localizedMessage ?: err.message ?: "Error de red en sincronización."
+            try {
+                val res = block(cloudRepo)
+                res.onFailure { err ->
+                    val msg = err.localizedMessage ?: err.message ?: "Error al sincronizar con Firestore."
                     _cloudAccessSyncStatus.value = "Error nube: $msg"
                     if (reportError) {
                         _errorMessage.value = "Guardado localmente, pero falló subida a nube: $msg"
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (err: Exception) {
+                val msg = err.localizedMessage ?: err.message ?: "Error de red en sincronización."
+                _cloudAccessSyncStatus.value = "Error nube: $msg"
+                if (reportError) {
+                    _errorMessage.value = "Guardado localmente, pero falló subida a nube: $msg"
+                }
+            }
         }
     }
 }

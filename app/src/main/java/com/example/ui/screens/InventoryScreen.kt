@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,19 +16,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Percent
-import androidx.compose.material.icons.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Schedule
@@ -38,12 +39,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -63,6 +65,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.model.MovementType
 import com.example.domain.model.ProductWithStock
 import com.example.ui.components.BarcodeScannerDialog
+import com.example.ui.components.DrakosSegmentedTabItem
+import com.example.ui.components.DrakosSegmentedTabs
 import com.example.ui.components.formatCurrency
 import com.example.ui.dialogs.BatchIntakeDialog
 import com.example.ui.dialogs.BulkPriceUpdateDialog
@@ -111,6 +115,7 @@ fun InventoryScreen(
     var showNewProductModal by remember { mutableStateOf(false) }
     var newProductInitialBarcode by remember { mutableStateOf("7790070001") }
     var scannerMode by remember { mutableStateOf<String?>(null) } // "INTAKE" o "SEARCH"
+    var showMoreActionsMenu by remember { mutableStateOf(false) }
 
     // 0: Lista / Ingreso | 1: Excel Multi-Sucursal (N2+) | 2: Pedido Semanal (N2+) | 3: Proveedores/Fact. (N2+) | 4: Vencimientos
     var inventoryTab by remember(userLevel) { mutableIntStateOf(if (isManagerOrOwner) 1 else 0) }
@@ -121,219 +126,122 @@ fun InventoryScreen(
         }
     }
 
+    val inventoryTabs = remember(isManagerOrOwner, products.size) {
+        buildList {
+            if (isManagerOrOwner) {
+                add(DrakosSegmentedTabItem(1, "Planilla Excel", Icons.Default.GridOn, "inv_tab_excel"))
+            }
+            add(DrakosSegmentedTabItem(0, "Stock Local (${products.size})", null, "inv_tab_list"))
+            if (isManagerOrOwner) {
+                add(DrakosSegmentedTabItem(5, "Promociones", Icons.Default.LocalOffer, "inv_tab_promos"))
+                add(DrakosSegmentedTabItem(2, "Pedido Semanal", Icons.Default.ShoppingCartCheckout, "inv_tab_weekly_order"))
+                add(DrakosSegmentedTabItem(3, "Proveedores", Icons.Default.Receipt, "inv_tab_suppliers"))
+            }
+            add(DrakosSegmentedTabItem(4, "Vencimientos", Icons.Default.Schedule, "inv_tab_expiry"))
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(DrakosCanvas)
             .padding(14.dp)
     ) {
-        Surface(
-            color = DrakosWhite,
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, DrakosBorder),
-            shadowElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
+        // Barra de comando operativa limpia: 1 CTA principal + menú agrupado + Acciones
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = if (isManagerOrOwner) "Gestión Avanzada de Stock" else "Ingreso & Control de Stock",
-                    fontFamily = SpaceGroteskFontFamily,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DrakosBlack
-                )
-                Text(
-                    text = if (isManagerOrOwner) {
-                        "Sucursal: ${currentBranch?.name ?: "Drakos"} • Planilla, Pedidos y Facturación"
-                    } else {
-                        "Sucursal: ${currentBranch?.name ?: "Drakos"} • Escaneo e ingreso rápido de mercadería"
-                    },
-                    fontSize = 11.sp,
-                    color = DrakosMutedInk
-                )
+            Button(
+                onClick = { scannerMode = "INTAKE" },
+                colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .testTag("inventory_scan_intake_button")
+            ) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Escanear Ingreso", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Box {
+                OutlinedButton(
+                    onClick = { showMoreActionsMenu = true },
+                    border = BorderStroke(1.dp, DrakosBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = DrakosWhite, contentColor = DrakosBlack),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("inventory_more_actions_button")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Acciones", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                }
+
+                DropdownMenu(
+                    expanded = showMoreActionsMenu,
+                    onDismissRequest = { showMoreActionsMenu = false },
+                    containerColor = DrakosWhite
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ingreso por Lote", fontSize = 13.sp, fontWeight = FontWeight.Medium) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAddCheck, contentDescription = null, tint = DrakosBlack) },
+                        onClick = {
+                            showMoreActionsMenu = false
+                            showBatchIntakeModal = true
+                        },
+                        modifier = Modifier.testTag("batch_intake_button")
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Recepción Remito", fontSize = 13.sp, fontWeight = FontWeight.Medium) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.CallReceived, contentDescription = null, tint = DrakosBlack) },
+                        onClick = {
+                            showMoreActionsMenu = false
+                            receiptPreselectedProductId = null
+                            showGoodsReceiptModal = true
+                        },
+                        modifier = Modifier.testTag("goods_receipt_button")
+                    )
+                    if (isManagerOrOwner) {
+                        DropdownMenuItem(
+                            text = { Text("Nuevo Producto", fontSize = 13.sp, fontWeight = FontWeight.Medium) },
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, tint = DrakosBlack) },
+                            onClick = {
+                                showMoreActionsMenu = false
+                                newProductInitialBarcode = "7790070001"
+                                showNewProductModal = true
+                            },
+                            modifier = Modifier.testTag("new_product_button")
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Precios % (Masivo)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = DrakosRed) },
+                            leadingIcon = { Icon(Icons.Default.Percent, contentDescription = null, tint = DrakosRed) },
+                            onClick = {
+                                showMoreActionsMenu = false
+                                showBulkPriceModal = true
+                            },
+                            modifier = Modifier.testTag("bulk_price_update_button")
+                        )
+                    }
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Acciones operativas de ingreso (habilitadas para Nivel 1, 2 y 3)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                Button(
-                    onClick = { scannerMode = "INTAKE" },
-                    colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .testTag("inventory_scan_intake_button")
-                ) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Escanear Ingreso", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            item {
-                Button(
-                    onClick = { showBatchIntakeModal = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = DrakosBlack),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .testTag("batch_intake_button")
-                ) {
-                    Icon(Icons.Default.PlaylistAddCheck, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Ingreso por Lote", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            item {
-                OutlinedButton(
-                    onClick = {
-                        receiptPreselectedProductId = null
-                        showGoodsReceiptModal = true
-                    },
-                    border = BorderStroke(1.dp, DrakosBlack),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .testTag("goods_receipt_button")
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.CallReceived,
-                        contentDescription = null,
-                        tint = DrakosBlack,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Recepción Remito", fontSize = 12.sp, color = DrakosBlack, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            // Alta de productos nuevos disponible desde Nivel 2 (Encargado) y Nivel 3 (Dueño)
-            if (isManagerOrOwner) {
-                item {
-                    Button(
-                        onClick = {
-                            newProductInitialBarcode = "7790070001"
-                            showNewProductModal = true
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = DrakosBlack),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("new_product_button")
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Nuevo Prod.", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                item {
-                    OutlinedButton(
-                        onClick = { showBulkPriceModal = true },
-                        border = BorderStroke(1.dp, DrakosRed),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("bulk_price_update_button")
-                    ) {
-                        Icon(Icons.Default.Percent, contentDescription = null, tint = DrakosRed, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Precios %", fontSize = 12.sp, color = DrakosRed, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Pestañas diferenciadas según nivel de acceso
-        val invChipColors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = DrakosRed,
-            selectedLabelColor = DrakosWhite,
-            selectedLeadingIconColor = DrakosWhite
+        DrakosSegmentedTabs(
+            items = inventoryTabs,
+            selectedId = inventoryTab,
+            onSelect = { inventoryTab = it },
+            modifier = Modifier.fillMaxWidth()
         )
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (isManagerOrOwner) {
-                item {
-                    FilterChip(
-                        selected = inventoryTab == 1,
-                        onClick = { inventoryTab = 1 },
-                        colors = invChipColors,
-                        shape = RoundedCornerShape(10.dp),
-                        leadingIcon = { Icon(Icons.Default.GridOn, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("Planilla Excel", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                        modifier = Modifier.testTag("inv_tab_excel")
-                    )
-                }
-            }
-            item {
-                FilterChip(
-                    selected = inventoryTab == 0,
-                    onClick = { inventoryTab = 0 },
-                    colors = invChipColors,
-                    shape = RoundedCornerShape(10.dp),
-                    label = { Text("Stock Local (${products.size})", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.testTag("inv_tab_list")
-                )
-            }
-            if (isManagerOrOwner) {
-                item {
-                    FilterChip(
-                        selected = inventoryTab == 5,
-                        onClick = { inventoryTab = 5 },
-                        colors = invChipColors,
-                        shape = RoundedCornerShape(10.dp),
-                        leadingIcon = { Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("Promociones", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                        modifier = Modifier.testTag("inv_tab_promos")
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = inventoryTab == 2,
-                        onClick = { inventoryTab = 2 },
-                        colors = invChipColors,
-                        shape = RoundedCornerShape(10.dp),
-                        leadingIcon = { Icon(Icons.Default.ShoppingCartCheckout, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("Pedido Semanal", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                        modifier = Modifier.testTag("inv_tab_weekly_order")
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = inventoryTab == 3,
-                        onClick = { inventoryTab = 3 },
-                        colors = invChipColors,
-                        shape = RoundedCornerShape(10.dp),
-                        leadingIcon = { Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("Proveedores y Fact.", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                        modifier = Modifier.testTag("inv_tab_suppliers")
-                    )
-                }
-            }
-            item {
-                FilterChip(
-                    selected = inventoryTab == 4,
-                    onClick = { inventoryTab = 4 },
-                    colors = invChipColors,
-                    shape = RoundedCornerShape(10.dp),
-                    leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                    label = { Text("Vencimientos", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.testTag("inv_tab_expiry")
-                )
-            }
-        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -411,7 +319,8 @@ fun InventoryScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                                 border = BorderStroke(1.dp, DrakosBorder),
-                                shape = RoundedCornerShape(10.dp)
+                                elevation = CardDefaults.cardElevation(0.dp),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -519,6 +428,12 @@ fun InventoryScreen(
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = DrakosWhite,
+                            unfocusedContainerColor = DrakosWhite,
+                            focusedBorderColor = DrakosBlack,
+                            unfocusedBorderColor = DrakosBorder
+                        ),
                         modifier = Modifier
                             .weight(1f)
                             .testTag("inventory_search_input")
@@ -587,14 +502,16 @@ fun InventoryScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = "Venta: ${formatCurrency(prod.sellingPrice)}",
+                                            fontFamily = JetBrainsMonoFontFamily,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.ExtraBold,
-                                            color = DrakosRed
+                                            color = DrakosBlack
                                         )
                                         if (isManagerOrOwner) {
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Text(
                                                 text = "Costo: ${formatCurrency(prod.costPrice)}",
+                                                fontFamily = JetBrainsMonoFontFamily,
                                                 fontSize = 11.sp,
                                                 color = DrakosMutedInk
                                             )
@@ -609,7 +526,8 @@ fun InventoryScreen(
                                     ) {
                                         Text(
                                             text = "${prod.quantityOnHand} u.",
-                                            fontSize = 13.sp,
+                                            fontFamily = JetBrainsMonoFontFamily,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = stockColor,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -623,7 +541,7 @@ fun InventoryScreen(
                                                 receiptPreselectedProductId = prod.productId
                                                 showGoodsReceiptModal = true
                                             },
-                                            border = BorderStroke(1.dp, DrakosRed),
+                                            border = BorderStroke(1.dp, DrakosBorder),
                                             modifier = Modifier
                                                 .size(48.dp)
                                                 .testTag("inventory_quick_intake_${prod.productId}"),
@@ -632,7 +550,7 @@ fun InventoryScreen(
                                             Icon(
                                                 Icons.AutoMirrored.Filled.CallReceived,
                                                 contentDescription = "Ingresar stock",
-                                                tint = DrakosRed,
+                                                tint = DrakosBlack,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }

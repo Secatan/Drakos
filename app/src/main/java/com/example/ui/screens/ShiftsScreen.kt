@@ -29,8 +29,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -43,7 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,6 +50,8 @@ import com.example.data.entity.CashSessionEntity
 import com.example.domain.analytics.DrakosAnalytics
 import com.example.domain.model.DifferenceStatus
 import com.example.domain.model.UserRole
+import com.example.ui.components.DrakosSegmentedTabItem
+import com.example.ui.components.DrakosSegmentedTabs
 import com.example.ui.components.ThermalClosingZModal
 import com.example.ui.components.formatCurrency
 import com.example.ui.components.formatDateTime
@@ -69,8 +68,8 @@ import com.example.ui.theme.DrakosRed
 import com.example.ui.theme.DrakosRedContainer
 import com.example.ui.theme.DrakosSurfaceTint
 import com.example.ui.theme.DrakosWhite
+import com.example.ui.theme.InfoBlue
 import com.example.ui.theme.JetBrainsMonoFontFamily
-import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.SpaceGroteskFontFamily
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
@@ -114,11 +113,12 @@ fun ShiftsScreen(
     var sessionToApprove by remember { mutableStateOf<CashSessionEntity?>(null) }
     var sessionForClosingZ by remember { mutableStateOf<CashSessionEntity?>(null) }
 
-    val tabChipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = DrakosRed,
-        selectedLabelColor = DrakosWhite,
-        selectedLeadingIconColor = DrakosWhite
-    )
+    val shiftTabs = remember(cashierVariances.size) {
+        listOf(
+            DrakosSegmentedTabItem(0, "Turno & Historial", null, "shifts_tab_history"),
+            DrakosSegmentedTabItem(1, "Desvíos x Cajero (${cashierVariances.size})", Icons.Default.PersonSearch, "shifts_tab_cashier_variance")
+        )
+    }
 
     Column(
         modifier = modifier
@@ -126,41 +126,13 @@ fun ShiftsScreen(
             .background(DrakosCanvas)
             .padding(14.dp)
     ) {
-        Text(
-            text = "Control de Caja y Turnos",
-            fontFamily = SpaceGroteskFontFamily,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = DrakosBlack
-        )
-        Text(
-            text = "Sucursal: ${currentBranch?.name ?: "Drakos"} • Arqueo Ciego y Gaveta",
-            fontSize = 12.sp,
-            color = DrakosMutedInk
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
         if (isManagerOrOwner) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = shiftsTab == 0,
-                    onClick = { shiftsTab = 0 },
-                    colors = tabChipColors,
-                    shape = RoundedCornerShape(10.dp),
-                    label = { Text("Turno & Historial", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.testTag("shifts_tab_history")
-                )
-                FilterChip(
-                    selected = shiftsTab == 1,
-                    onClick = { shiftsTab = 1 },
-                    colors = tabChipColors,
-                    shape = RoundedCornerShape(10.dp),
-                    leadingIcon = { Icon(Icons.Default.PersonSearch, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                    label = { Text("Desvíos x Cajero (${cashierVariances.size})", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.testTag("shifts_tab_cashier_variance")
-                )
-            }
+            DrakosSegmentedTabs(
+                items = shiftTabs,
+                selectedId = shiftsTab,
+                onSelect = { shiftsTab = it },
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(modifier = Modifier.height(10.dp))
         }
 
@@ -170,7 +142,8 @@ fun ShiftsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                     border = BorderStroke(1.dp, DrakosBorder),
-                    shape = RoundedCornerShape(12.dp)
+                    elevation = CardDefaults.cardElevation(0.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(20.dp),
@@ -191,7 +164,8 @@ fun ShiftsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                             border = BorderStroke(1.dp, DrakosBorder),
-                            shape = RoundedCornerShape(10.dp)
+                            elevation = CardDefaults.cardElevation(0.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Row(
@@ -283,8 +257,8 @@ fun ShiftsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                     border = BorderStroke(1.dp, DrakosBorder),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(1.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    elevation = CardDefaults.cardElevation(0.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -314,6 +288,7 @@ fun ShiftsScreen(
                                 Text("Fondo Inicial (Gaveta):", fontSize = 11.sp, color = DrakosMutedInk)
                                 Text(
                                     text = formatCurrency(currentSession.openingAmount),
+                                    fontFamily = JetBrainsMonoFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
                                     color = DrakosBlack
@@ -327,7 +302,7 @@ fun ShiftsScreen(
                                         fontFamily = JetBrainsMonoFontFamily,
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 14.sp,
-                                        color = DrakosRed
+                                        color = DrakosBlack
                                     )
                                 }
                             }
@@ -459,7 +434,7 @@ fun ShiftsScreen(
 
                     val statusBadgeColor = when {
                         isPending -> WarningAmber
-                        isApproved -> PrimaryBlue
+                        isApproved -> InfoBlue
                         else -> SuccessGreen
                     }
                     val statusBadgeLabel = when {
@@ -472,7 +447,8 @@ fun ShiftsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                         border = BorderStroke(1.dp, DrakosBorder),
-                        shape = RoundedCornerShape(8.dp)
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(
@@ -540,7 +516,7 @@ fun ShiftsScreen(
                                     if (isPending) {
                                         Button(
                                             onClick = { sessionToApprove = session },
-                                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                                            colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
                                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                                         ) {
                                             Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))

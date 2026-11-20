@@ -56,11 +56,8 @@ import android.content.Intent
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -87,6 +84,8 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
 import com.example.data.cloud.authStateFlow
+import com.example.ui.components.DrakosSegmentedTabItem
+import com.example.ui.components.DrakosSegmentedTabs
 import com.example.ui.viewmodel.KioscoViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
@@ -106,8 +105,10 @@ fun AccessControlScreen(
     val firebaseAuth = remember { Firebase.auth }
     val firebaseUser by remember { firebaseAuth.authStateFlow() }
         .collectAsStateWithLifecycle(initialValue = firebaseAuth.currentUser)
-    val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val clipboardManager = remember(context) {
+        context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    }
 
     var subTab by remember { mutableIntStateOf(0) } // 0: Dispositivos, 1: Usuarios N1/N2
     var showCreateUserDialog by remember { mutableStateOf(false) }
@@ -116,53 +117,25 @@ fun AccessControlScreen(
     var generatedToken by remember { mutableStateOf<String?>(null) }
     var generatedPortablePackage by remember { mutableStateOf<String?>(null) }
 
+    val accessTabs = remember(devices, users.size) {
+        listOf(
+            DrakosSegmentedTabItem(0, "Dispositivos (${devices.count { it.status == "AUTHORIZED" }})", Icons.Default.Devices, "access_tab_devices"),
+            DrakosSegmentedTabItem(1, "Accesos N1 / N2 (${users.size})", Icons.Default.Shield, "access_tab_users")
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(DrakosCanvas)
             .padding(14.dp)
     ) {
-        Text(
-            text = "Accesos y Dispositivos (Nivel 3)",
-            fontFamily = SpaceGroteskFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = DrakosBlack
+        DrakosSegmentedTabs(
+            items = accessTabs,
+            selectedId = subTab,
+            onSelect = { subTab = it },
+            modifier = Modifier.fillMaxWidth()
         )
-        Text(
-            text = "Control centralizado de permisos Nivel 1 / Nivel 2 y lista blanca de teléfonos autorizados.",
-            fontSize = 12.sp,
-            color = DrakosMutedInk
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val chipColors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = DrakosBlack,
-                selectedLabelColor = DrakosWhite,
-                selectedLeadingIconColor = DrakosRed
-            )
-            FilterChip(
-                selected = subTab == 0,
-                onClick = { subTab = 0 },
-                colors = chipColors,
-                leadingIcon = { Icon(Icons.Default.Devices, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                label = { Text("Dispositivos (${devices.count { it.status == "AUTHORIZED" }})", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                modifier = Modifier.testTag("access_tab_devices")
-            )
-            FilterChip(
-                selected = subTab == 1,
-                onClick = { subTab = 1 },
-                colors = chipColors,
-                leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                label = { Text("Accesos N1 / N2 (${users.size})", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                modifier = Modifier.testTag("access_tab_users")
-            )
-        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -176,7 +149,7 @@ fun AccessControlScreen(
                         colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                         border = BorderStroke(1.dp, DrakosBorder),
                         shape = RoundedCornerShape(14.dp),
-                        elevation = CardDefaults.cardElevation(1.dp)
+                        elevation = CardDefaults.cardElevation(0.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(
@@ -345,7 +318,9 @@ fun AccessControlScreen(
                                         }
                                         OutlinedButton(
                                             onClick = {
-                                                clipboard.setText(AnnotatedString(generatedToken!!))
+                                                clipboardManager.setPrimaryClip(
+                                                    android.content.ClipData.newPlainText("Drakos_Code", generatedToken!!)
+                                                )
                                                 viewModel.notifyInfo("Código $generatedToken copiado al portapapeles.")
                                             },
                                             modifier = Modifier.heightIn(min = 48.dp)
@@ -390,7 +365,9 @@ fun AccessControlScreen(
                                             ) {
                                                 OutlinedButton(
                                                     onClick = {
-                                                        clipboard.setText(AnnotatedString(pkg))
+                                                        clipboardManager.setPrimaryClip(
+                                                            android.content.ClipData.newPlainText("Drakos_Key", pkg)
+                                                        )
                                                         viewModel.notifyInfo("Llave portátil copiada. Péguela en el otro teléfono en 'Vincular / Importar'.")
                                                     },
                                                     modifier = Modifier
@@ -569,7 +546,9 @@ fun AccessControlScreen(
                     val branchId = branches.firstOrNull()?.id ?: 1L
                     viewModel.buildAllStaffPortablePackage(branchId) { pkg ->
                         generatedPortablePackage = pkg
-                        clipboard.setText(AnnotatedString(pkg))
+                        clipboardManager.setPrimaryClip(
+                            android.content.ClipData.newPlainText("Drakos_Key", pkg)
+                        )
                         viewModel.notifyInfo("Llave portátil con todos los PINs copiada. Péguela en el otro celular en 'Vincular / Importar'.")
                         subTab = 0
                     }
@@ -703,6 +682,7 @@ private fun InviteDeviceDialog(
 ) {
     var alias by remember { mutableStateOf("Teléfono Caja 2") }
     var branchId by remember { mutableLongStateOf(branches.firstOrNull()?.id ?: 1L) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -715,7 +695,7 @@ private fun InviteDeviceDialog(
                 Text("Se generará un código único para autorizar el ingreso de un teléfono externo a Drakos.", fontSize = 12.sp, color = DrakosMutedInk)
                 OutlinedTextField(
                     value = alias,
-                    onValueChange = { alias = it },
+                    onValueChange = { alias = it; validationError = null },
                     label = { Text("Nombre o alias del teléfono") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -733,11 +713,21 @@ private fun InviteDeviceDialog(
                         )
                     }
                 }
+                if (!validationError.isNullOrBlank()) {
+                    Text(validationError ?: "", color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(alias, branchId) },
+                onClick = {
+                    val trimmed = alias.trim()
+                    if (trimmed.isEmpty()) {
+                        validationError = "Ingrese un alias o nombre para identificar el dispositivo."
+                    } else {
+                        onConfirm(trimmed, branchId)
+                    }
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed)
             ) {
                 Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -847,6 +837,7 @@ private fun EditStaffAccessDialog(
     var branchId by remember { mutableLongStateOf(user.assignedBranchId) }
     var isActive by remember { mutableStateOf(user.isActive) }
     var newPin by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -879,7 +870,12 @@ private fun EditStaffAccessDialog(
                 }
                 OutlinedTextField(
                     value = newPin,
-                    onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) newPin = it },
+                    onValueChange = {
+                        if (it.length <= 4 && it.all { c -> c.isDigit() }) {
+                            newPin = it
+                            validationError = null
+                        }
+                    },
                     label = { Text("Blanquear PIN (opcional, 4 dígitos)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     singleLine = true,
@@ -898,11 +894,20 @@ private fun EditStaffAccessDialog(
                         )
                     }
                 }
+                if (!validationError.isNullOrBlank()) {
+                    Text(validationError ?: "", color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(role, branchId, isActive, newPin.ifBlank { null }) },
+                onClick = {
+                    if (newPin.isNotEmpty() && newPin.length != 4) {
+                        validationError = "Si ingresa un nuevo PIN, debe tener exactamente 4 dígitos."
+                    } else {
+                        onConfirm(role, branchId, isActive, newPin.ifBlank { null })
+                    }
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosBlack)
             ) {
                 Text("Guardar Cambios")

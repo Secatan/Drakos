@@ -48,15 +48,19 @@ import com.example.data.entity.ProductEntity
 import com.example.domain.analytics.DrakosAnalytics
 import com.example.domain.model.PriceRoundingStep
 import com.example.ui.components.formatCurrency
+import com.example.ui.components.parseArsDecimal
+import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
 import com.example.ui.theme.DrakosBorder
 import com.example.ui.theme.DrakosMutedInk
 import com.example.ui.theme.DrakosRed
+import com.example.ui.theme.DrakosRedContainer
 import com.example.ui.theme.DrakosSurfaceTint
 import com.example.ui.theme.DrakosWhite
 import com.example.ui.theme.JetBrainsMonoFontFamily
 import com.example.ui.theme.SpaceGroteskFontFamily
 import com.example.ui.theme.SuccessGreen
+import java.util.Locale
 
 @Composable
 fun BulkPriceUpdateDialog(
@@ -76,9 +80,12 @@ fun BulkPriceUpdateDialog(
     var pricePctInput by remember { mutableStateOf("10") }
     var preserveMargin by remember { mutableStateOf(true) }
     var roundingStep by remember { mutableStateOf(PriceRoundingStep.FIFTY) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
-    val costDelta = costPctInput.toDoubleOrNull() ?: 0.0
-    val priceDelta = pricePctInput.toDoubleOrNull() ?: 0.0
+    val parsedCostDelta = parseArsDecimal(costPctInput)
+    val parsedPriceDelta = parseArsDecimal(pricePctInput)
+    val costDelta = parsedCostDelta ?: 0.0
+    val priceDelta = parsedPriceDelta ?: 0.0
 
     val previewRows = remember(products, selectedCategoryId, costDelta, priceDelta, preserveMargin, roundingStep) {
         DrakosAnalytics.buildBulkPricePreview(
@@ -170,9 +177,12 @@ fun BulkPriceUpdateDialog(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = costPctInput,
-                        onValueChange = { costPctInput = it },
+                        onValueChange = {
+                            costPctInput = it
+                            validationError = null
+                        },
                         label = { Text("Ajuste Costo (%)", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier
                             .weight(1f)
@@ -180,10 +190,13 @@ fun BulkPriceUpdateDialog(
                     )
                     OutlinedTextField(
                         value = if (preserveMargin) costPctInput else pricePctInput,
-                        onValueChange = { pricePctInput = it },
+                        onValueChange = {
+                            pricePctInput = it
+                            validationError = null
+                        },
                         enabled = !preserveMargin,
                         label = { Text("Ajuste Venta (%)", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier
                             .weight(1f)
@@ -250,7 +263,7 @@ fun BulkPriceUpdateDialog(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(row.name.take(22), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DrakosBlack)
                                         Text(
-                                            text = "Margen est.: ${String.format("%.1f", row.newMarginPercent)}%",
+                                            text = "Margen est.: ${String.format(Locale.forLanguageTag("es-AR"), "%.1f", row.newMarginPercent)}%",
                                             fontSize = 9.sp,
                                             color = SuccessGreen
                                         )
@@ -267,18 +280,47 @@ fun BulkPriceUpdateDialog(
                         }
                     }
                 }
+
+                validationError?.let { err ->
+                    Surface(
+                        color = DrakosRedContainer,
+                        border = BorderStroke(1.dp, DrakosRed),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = DangerRed,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(
-                        selectedCategoryId,
-                        costDelta,
-                        if (preserveMargin) costDelta else priceDelta,
-                        preserveMargin,
-                        roundingStep
-                    )
+                    val invalidCost = parsedCostDelta == null || parsedCostDelta <= -100.0
+                    val invalidPrice = !preserveMargin && (parsedPriceDelta == null || parsedPriceDelta <= -100.0)
+                    when {
+                        invalidCost -> {
+                            validationError = "Ingrese un porcentaje válido para ajuste de costo (> -100%)."
+                        }
+                        invalidPrice -> {
+                            validationError = "Ingrese un porcentaje válido para ajuste de precio de venta (> -100%)."
+                        }
+                        else -> {
+                            onConfirm(
+                                selectedCategoryId,
+                                costDelta,
+                                if (preserveMargin) costDelta else priceDelta,
+                                preserveMargin,
+                                roundingStep
+                            )
+                        }
+                    }
                 },
                 enabled = previewRows.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),

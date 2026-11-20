@@ -22,9 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -113,12 +113,12 @@ fun FinancialBarChartCard(
         color = DrakosWhite,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, DrakosHairline),
-        shadowElevation = 1.dp
+        shadowElevation = 0.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Cabecera: Título izquierda + Segmented Pills derecha
@@ -226,7 +226,7 @@ fun FinancialBarChartCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = if (chartVisualStyle == 1) Icons.Default.BarChart else Icons.Default.ShowChart,
+                                imageVector = if (chartVisualStyle == 1) Icons.Default.BarChart else Icons.AutoMirrored.Filled.ShowChart,
                                 contentDescription = "Cambiar tipo de gráfico",
                                 tint = DrakosDarkGray,
                                 modifier = Modifier.size(13.dp)
@@ -496,8 +496,8 @@ private fun ChartTitleBlock(
         Icon(
             imageVector = Icons.Default.BarChart,
             contentDescription = null,
-            tint = DrakosRed,
-            modifier = Modifier.size(19.dp)
+            tint = DrakosDarkGray,
+            modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Column {
@@ -579,9 +579,9 @@ private fun PeriodSegmentedBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Surface(
-            color = if (chartMode == 0) DrakosRed else DrakosLightCanvas,
+            color = if (chartMode == 0) DrakosBlack else DrakosLightCanvas,
             shape = RoundedCornerShape(10.dp),
-            border = BorderStroke(1.dp, if (chartMode == 0) DrakosRed else DrakosHairline),
+            border = BorderStroke(1.dp, if (chartMode == 0) DrakosBlack else DrakosHairline),
             modifier = Modifier
                 .weight(1f)
                 .clickable { onSelectMode(0) }
@@ -603,9 +603,9 @@ private fun PeriodSegmentedBar(
             }
         }
         Surface(
-            color = if (chartMode == 1) DrakosRed else DrakosLightCanvas,
+            color = if (chartMode == 1) DrakosBlack else DrakosLightCanvas,
             shape = RoundedCornerShape(10.dp),
-            border = BorderStroke(1.dp, if (chartMode == 1) DrakosRed else DrakosHairline),
+            border = BorderStroke(1.dp, if (chartMode == 1) DrakosBlack else DrakosHairline),
             modifier = Modifier
                 .weight(1f)
                 .clickable { onSelectMode(1) }
@@ -637,7 +637,8 @@ private fun PeriodTabPill(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = if (selected) DrakosRed else Color.Transparent,
+        color = if (selected) DrakosWhite else Color.Transparent,
+        shadowElevation = if (selected) 1.dp else 0.dp,
         shape = RoundedCornerShape(8.dp),
         modifier = modifier.clickable { onClick() }
     ) {
@@ -645,7 +646,7 @@ private fun PeriodTabPill(
             text = label,
             fontSize = 11.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) DrakosWhite else DrakosDarkGray,
+            color = if (selected) DrakosDarkGray else DrakosMutedGray,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
@@ -725,7 +726,7 @@ private fun LegendDot(color: Color, label: String) {
 
 private fun formatCompactArs(value: Double): String {
     return when {
-        value >= 1_000_000.0 -> String.format("$%.1fM", value / 1_000_000.0)
+        value >= 1_000_000.0 -> String.format(java.util.Locale.forLanguageTag("es-AR"), "$%.1fM", value / 1_000_000.0)
         value >= 1_000.0 -> "$${(value / 1_000.0).toInt()}k"
         else -> "$${value.toInt()}"
     }

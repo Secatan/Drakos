@@ -57,7 +57,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -73,7 +72,6 @@ import com.example.data.cloud.onGoogleSignInClicked
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
 import com.example.ui.theme.DrakosBorder
-import com.example.ui.theme.DrakosCharcoal
 import com.example.ui.theme.DrakosMutedInk
 import com.example.ui.theme.DrakosRed
 import com.example.ui.theme.DrakosRedContainer
@@ -94,7 +92,6 @@ fun PinLoginScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
     val firebaseAuth = remember { Firebase.auth }
@@ -637,7 +634,10 @@ fun PinLoginScreen(
                     }
                     OutlinedButton(
                         onClick = {
-                            val pasted = clipboard.getText()?.text?.trim().orEmpty()
+                            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val pasted = cm.primaryClip?.let { clip ->
+                                if (clip.itemCount > 0) clip.getItemAt(0).coerceToText(context)?.toString()?.trim().orEmpty() else ""
+                            } ?: ""
                             if (pasted.isNotBlank()) {
                                 pairingCodeInput = pasted
                             }

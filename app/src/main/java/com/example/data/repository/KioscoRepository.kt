@@ -45,6 +45,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 class KioscoRepository(private val database: KioscoDatabase) {
 
@@ -65,6 +66,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
     private val invoiceDao = database.supplierInvoiceDao()
     private val weeklyOrderDao = database.weeklyOrderDao()
     private val promotionDao = database.promotionDao()
+    private val seqCounter = AtomicInteger(0)
+
+    private fun nextSeqSuffix(): Int = seqCounter.updateAndGet { (it + 1) % 100 }
 
     // --- Lecturas Reactivas ---
     fun getBranches(): Flow<List<BranchEntity>> = branchDao.getAllBranches()
@@ -119,7 +123,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
             val catMap = categories.associate { it.id to it.name }
             val now = System.currentTimeMillis()
             val dayMs = 86_400_000L
-            val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("es", "AR"))
+            val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.forLanguageTag("es-AR"))
 
             batches.mapNotNull { batch ->
                 val prod = prodMap[batch.productId] ?: return@mapNotNull null
@@ -207,7 +211,8 @@ class KioscoRepository(private val database: KioscoDatabase) {
         cartItems: List<CartItem>,
         paymentMethod: PaymentMethod,
         discount: Double = 0.0,
-        idempotencyKey: String = UUID.randomUUID().toString()
+        idempotencyKey: String = UUID.randomUUID().toString(),
+        accountHolder: String? = null
     ): Result<SaleEntity> = database.withTransaction {
         // 1. Verificar turno de caja abierto
         val activeSession = cashDao.getActiveSession(branchId)
@@ -216,9 +221,18 @@ class KioscoRepository(private val database: KioscoDatabase) {
         if (cartItems.isEmpty()) {
             return@withTransaction Result.failure(IllegalArgumentException("El carrito está vacío."))
         }
+        if (!discount.isFinite() || discount < 0.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("El descuento debe ser un importe válido."))
+        }
+        if (paymentMethod == PaymentMethod.ACCOUNT && accountHolder != null && accountHolder.isBlank()) {
+            return@withTransaction Result.failure(IllegalArgumentException("Debe indicar el titular de la Cuenta Corriente (Fiado)."))
+        }
 
         // 2. Verificar existencias de inventario para cada ítem (no permitir stock negativo)
         for (item in cartItems) {
+            if (item.quantity <= 0) {
+                return@withTransaction Result.failure(IllegalArgumentException("Cantidad inválida para '${item.name}'."))
+            }
             val inv = inventoryDao.getBranchInventoryItem(branchId, item.productId)
             val currentQty = inv?.quantityOnHand ?: 0
             if (currentQty < item.quantity) {
@@ -235,7 +249,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
         val finalTotal = (rawSubtotal - discount).coerceAtLeast(0.0)
         val vatTotal = if (vatRate > 0.0) finalTotal * (vatRate / 100.0) / (1.0 + vatRate / 100.0) else 0.0
 
-        val receiptNumber = "TK-${String.format("%03d", branchId)}-${System.currentTimeMillis() % 1000000}"
+        val receiptNumber = "TK-${String.format(Locale.US, "%03d", branchId)}-${System.currentTimeMillis() % 1_000_000}-${nextSeqSuffix()}"
 
         // 4. Crear venta
         val sale = SaleEntity(
@@ -278,6 +292,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
                 inv.copy(quantityOnHand = next)
             )
 
+            val holderSuffix = accountHolder?.trim()?.takeIf { it.isNotBlank() }?.let { " • Titular Fiado: $it" } ?: ""
             inventoryDao.insertMovement(
                 InventoryMovementEntity(
                     branchId = branchId,
@@ -288,7 +303,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
                     newQuantity = next,
                     unitCost = item.unitCost,
                     referenceId = receiptNumber,
-                    notes = "Venta POS Ticket #$receiptNumber ($paymentMethod)",
+                    notes = "Venta POS Ticket #$receiptNumber ($paymentMethod)$holderSuffix",
                     createdByUserId = userId
                 )
             )
@@ -305,6 +320,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
         }
 
         // 6. Asentar en auditoría
+        val holderDetail = accountHolder?.trim()?.takeIf { it.isNotBlank() }?.let { " Titular Cuenta Corriente: $it." } ?: ""
         auditDao.insertAuditLog(
             AuditLogEntity(
                 userId = userId,
@@ -313,7 +329,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
                 action = "SALE_CONFIRMED",
                 entityType = "SALE",
                 entityId = receiptNumber,
-                details = "Venta por $ $finalTotal ($paymentMethod). Ítems: ${cartItems.size}."
+                details = "Venta por $ $finalTotal ($paymentMethod). Ítems: ${cartItems.size}.$holderDetail"
             )
         )
 
@@ -329,6 +345,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         openingAmount: Double,
         notes: String
     ): Result<CashSessionEntity> = database.withTransaction {
+        if (!openingAmount.isFinite() || openingAmount < 0.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("El fondo inicial debe ser un monto válido mayor o igual a $0."))
+        }
         val existing = cashDao.getActiveSession(branchId)
         if (existing != null) {
             return@withTransaction Result.failure(IllegalStateException("Ya existe un turno de caja abierto en esta sucursal."))
@@ -367,6 +386,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         notes: String,
         tolerance: Double = 500.0 // Tolerancia estándar en ARS si no hay configuración persistida
     ): Result<CashSessionEntity> = database.withTransaction {
+        if (!countedAmount.isFinite() || countedAmount < 0.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("El monto contado en arqueo debe ser mayor o igual a $0."))
+        }
         val session = cashDao.getSessionById(sessionId)
             ?: return@withTransaction Result.failure(IllegalStateException("Turno de caja no encontrado."))
 
@@ -421,6 +443,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         userId: Long,
         userName: String
     ): Result<CashMovementEntity> = database.withTransaction {
+        if (!amount.isFinite() || amount <= 0.0 || reason.isBlank()) {
+            return@withTransaction Result.failure(IllegalArgumentException("Ingrese un monto mayor a $0 y el motivo del retiro."))
+        }
         val drop = CashMovementEntity(
             id = 0,
             cashSessionId = sessionId,
@@ -453,6 +478,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         userId: Long,
         userName: String
     ): Result<Unit> = database.withTransaction {
+        if (notes.isBlank()) {
+            return@withTransaction Result.failure(IllegalArgumentException("Ingrese el motivo o justificación para aprobar la diferencia."))
+        }
         val session = cashDao.getSessionById(sessionId)
             ?: return@withTransaction Result.failure(IllegalStateException("Turno de caja no encontrado."))
 
@@ -508,7 +536,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
                 previousQuantity = prev,
                 newQuantity = next,
                 unitCost = prod.costPrice,
-                referenceId = "AJUSTE-${System.currentTimeMillis() % 100000}",
+                referenceId = "AJUSTE-${System.currentTimeMillis() % 100000}-${nextSeqSuffix()}",
                 notes = notes,
                 createdByUserId = userId
             )
@@ -542,6 +570,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
     ): Result<StockTransferEntity> = database.withTransaction {
         if (sourceBranchId == targetBranchId) {
             return@withTransaction Result.failure(IllegalArgumentException("La sucursal origen y destino deben ser distintas."))
+        }
+        if (quantity <= 0) {
+            return@withTransaction Result.failure(IllegalArgumentException("La cantidad a transferir debe ser mayor a 0."))
         }
 
         val prod = productDao.getProductById(productId)
@@ -715,6 +746,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         userId: Long,
         userName: String
     ): Result<ExpenseEntity> = database.withTransaction {
+        if (!amount.isFinite() || amount <= 0.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("El importe del gasto debe ser mayor a $0."))
+        }
         val expense = ExpenseEntity(
             id = 0,
             branchId = branchId,
@@ -767,6 +801,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         userId: Long,
         userName: String
     ): Result<Unit> = database.withTransaction {
+        if (reason.isBlank()) {
+            return@withTransaction Result.failure(IllegalArgumentException("Debe indicar el motivo de la anulación."))
+        }
         val sale = saleDao.getSaleById(saleId)
             ?: return@withTransaction Result.failure(IllegalStateException("Venta no encontrada."))
 
@@ -862,6 +899,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         batchNumber: String = "",
         expiryDateMillis: Long? = null
     ): Result<Unit> = database.withTransaction {
+        if (quantity <= 0 || !unitCost.isFinite() || unitCost < 0.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("Cantidad y costo unitario válidos son obligatorios."))
+        }
         val prod = productDao.getProductById(productId)
             ?: return@withTransaction Result.failure(IllegalStateException("Producto no encontrado."))
 
@@ -886,7 +926,7 @@ class KioscoRepository(private val database: KioscoDatabase) {
             productDao.updateProduct(prod.copy(costPrice = unitCost))
         }
 
-        val effectiveBatch = batchNumber.ifBlank { "LOT-${System.currentTimeMillis() % 100000}" }
+        val effectiveBatch = batchNumber.ifBlank { "LOT-${System.currentTimeMillis() % 100000}-${nextSeqSuffix()}" }
         val effectiveExpiry = expiryDateMillis ?: (System.currentTimeMillis() + 90L * 86_400_000L)
         batchDao.insertBatch(
             ProductBatchEntity(
@@ -1019,6 +1059,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         userId: Long,
         userName: String
     ): Result<Long> = database.withTransaction {
+        if (product.name.isBlank() || product.barcode.isBlank() || !product.sellingPrice.isFinite() || product.sellingPrice <= 0.0 || !product.costPrice.isFinite() || product.costPrice < 0.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("Nombre, código de barras y precios válidos son obligatorios."))
+        }
         val id = productDao.insertProduct(product)
         if (product.id == 0L) {
             for (b in 1..10) {
@@ -1374,11 +1417,26 @@ class KioscoRepository(private val database: KioscoDatabase) {
         applied
     }
 
+    suspend fun getTransferItemsSync(transferId: Long): List<StockTransferItemEntity> =
+        transferDao.getTransferItems(transferId)
+
+    suspend fun buildTransferCloudPayloadInfo(transfer: StockTransferEntity): Pair<String, Int> {
+        val items = transferDao.getTransferItems(transfer.id)
+        if (items.isEmpty()) {
+            return "Transferencia #${transfer.id} (K0${transfer.sourceBranchId} -> K0${transfer.targetBranchId})" to 1
+        }
+        val summary = items.joinToString(", ") { "${it.productName} x${it.quantityRequested}" }.take(160)
+        val totalQty = items.sumOf { it.quantityRequested }.coerceAtLeast(1)
+        return summary to totalQty
+    }
+
     suspend fun upsertSyncedDevices(remoteDevices: List<AuthorizedDeviceEntity>): Int = database.withTransaction {
         var applied = 0
+        val remoteById = mutableMapOf<String, AuthorizedDeviceEntity>()
         remoteDevices.forEach { remote ->
             val cleanId = remote.deviceId.trim().uppercase()
             if (cleanId.length >= 4) {
+                remoteById[cleanId] = remote.copy(deviceId = cleanId)
                 val existing = deviceDao.getDeviceById(cleanId)
                 if (existing == null) {
                     deviceDao.upsertDevice(remote.copy(id = 0L, deviceId = cleanId))
@@ -1387,6 +1445,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
                     val shouldUpdate = when {
                         remote.status == "REVOKED" && existing.status != "REVOKED" -> true
                         existing.status == "PENDING" && remote.status == "AUTHORIZED" -> true
+                        existing.status == "AUTHORIZED" &&
+                            existing.approvedByUserName == "Bootstrap Terminal Central" &&
+                            remote.status == "PENDING" -> true
                         existing.assignedBranchId != remote.assignedBranchId && !existing.deviceId.startsWith("INVITE-") && remote.status == "AUTHORIZED" -> true
                         else -> false
                     }
@@ -1402,6 +1463,29 @@ class KioscoRepository(private val database: KioscoDatabase) {
                         )
                         applied++
                     }
+                }
+            }
+        }
+
+        // Cerrar bypass de whitelist: si ya existen terminales autorizadas reales en la nube,
+        // cualquier terminal auto-bootstrapeada localmente que no figure autorizada en la nube pasa a PENDING.
+        val cloudHasAuthorizedTerminal = remoteById.values.any {
+            it.status == "AUTHORIZED" && !it.deviceId.startsWith("INVITE-")
+        }
+        if (cloudHasAuthorizedTerminal) {
+            deviceDao.getAllDevicesSync().forEach { localDev ->
+                val remoteMatch = remoteById[localDev.deviceId.trim().uppercase()]
+                if (localDev.status == "AUTHORIZED" &&
+                    localDev.approvedByUserName == "Bootstrap Terminal Central" &&
+                    remoteMatch?.status != "AUTHORIZED"
+                ) {
+                    deviceDao.updateDevice(
+                        localDev.copy(
+                            status = "PENDING",
+                            approvedByUserName = ""
+                        )
+                    )
+                    applied++
                 }
             }
         }
@@ -1668,6 +1752,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         userId: Long,
         userName: String
     ): Result<Int> = database.withTransaction {
+        if (!costPercentDelta.isFinite() || !pricePercentDelta.isFinite()) {
+            return@withTransaction Result.failure(IllegalArgumentException("Los porcentajes de ajuste deben ser numéricos válidos."))
+        }
         val activeProducts = productDao.getAllActiveProductsSync()
         val previewRows = DrakosAnalytics.buildBulkPricePreview(
             products = activeProducts,
@@ -1716,6 +1803,9 @@ class KioscoRepository(private val database: KioscoDatabase) {
         userId: Long,
         userName: String
     ): Result<Double> = database.withTransaction {
+        if (!discountPercent.isFinite() || discountPercent <= 0.0 || discountPercent >= 100.0) {
+            return@withTransaction Result.failure(IllegalArgumentException("El porcentaje de liquidación debe estar entre 1% y 99%."))
+        }
         val prod = productDao.getProductById(productId)
             ?: return@withTransaction Result.failure(IllegalStateException("Producto no encontrado."))
         val rawPromoPrice = (prod.sellingPrice * (1.0 - discountPercent / 100.0)).coerceAtLeast(10.0)

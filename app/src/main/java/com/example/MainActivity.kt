@@ -517,50 +517,54 @@ fun KioscoMainApp(viewModel: KioscoViewModel) {
                         if (!isWideScreen) {
                             Surface(
                                 color = DrakosBlack,
-                                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-                                tonalElevation = 6.dp
+                                tonalElevation = 0.dp
                             ) {
-                                NavigationBar(
-                                    containerColor = Color.Transparent,
-                                    tonalElevation = 0.dp,
-                                    modifier = Modifier.clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-                                ) {
-                                    visibleScreens.forEach { screen ->
-                                        val navLabel = when {
-                                            screen == KioscoNavScreen.DASHBOARD && userLevel == 3 -> "Finanzas"
-                                            screen == KioscoNavScreen.DASHBOARD && userLevel == 2 -> "Métricas"
-                                            else -> screen.title
+                                Column {
+                                    androidx.compose.material3.HorizontalDivider(
+                                        color = Color(0xFF1F2229),
+                                        thickness = 1.dp
+                                    )
+                                    NavigationBar(
+                                        containerColor = Color.Transparent,
+                                        tonalElevation = 0.dp
+                                    ) {
+                                        visibleScreens.forEach { screen ->
+                                            val navLabel = when {
+                                                screen == KioscoNavScreen.DASHBOARD && userLevel == 3 -> "Finanzas"
+                                                screen == KioscoNavScreen.DASHBOARD && userLevel == 2 -> "Métricas"
+                                                else -> screen.title
+                                            }
+                                            NavigationBarItem(
+                                                selected = selectedScreen == screen,
+                                                onClick = { selectedScreen = screen },
+                                                icon = {
+                                                    Icon(
+                                                        imageVector = if (screen == KioscoNavScreen.DASHBOARD && userLevel >= 2) {
+                                                            Icons.Default.Assessment
+                                                        } else {
+                                                            screen.icon
+                                                        },
+                                                        contentDescription = navLabel,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                },
+                                                label = {
+                                                    Text(
+                                                        text = navLabel,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = if (selectedScreen == screen) FontWeight.SemiBold else FontWeight.Normal
+                                                    )
+                                                },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    selectedIconColor = DrakosWhite,
+                                                    selectedTextColor = DrakosWhite,
+                                                    indicatorColor = Color(0xFF1F2229),
+                                                    unselectedIconColor = Color(0xFF8B909A),
+                                                    unselectedTextColor = Color(0xFF8B909A)
+                                                ),
+                                                modifier = Modifier.testTag("nav_${screen.name.lowercase()}")
+                                            )
                                         }
-                                        NavigationBarItem(
-                                            selected = selectedScreen == screen,
-                                            onClick = { selectedScreen = screen },
-                                            icon = {
-                                                Icon(
-                                                    imageVector = if (screen == KioscoNavScreen.DASHBOARD && userLevel >= 2) {
-                                                        Icons.Default.Assessment
-                                                    } else {
-                                                        screen.icon
-                                                    },
-                                                    contentDescription = navLabel,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            },
-                                            label = {
-                                                Text(
-                                                    text = navLabel,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = if (selectedScreen == screen) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            },
-                                            colors = NavigationBarItemDefaults.colors(
-                                                selectedIconColor = DrakosWhite,
-                                                selectedTextColor = DrakosWhite,
-                                                indicatorColor = DrakosRed,
-                                                unselectedIconColor = Color(0xFF9CA3AF),
-                                                unselectedTextColor = Color(0xFF9CA3AF)
-                                            ),
-                                            modifier = Modifier.testTag("nav_${screen.name.lowercase()}")
-                                        )
                                     }
                                 }
                             }

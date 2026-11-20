@@ -4,22 +4,22 @@ import androidx.compose.ui.graphics.Color
 
 // Paleta Corporativa Oficial DRAKOS MANAGEMENT
 val DrakosBlack = Color(0xFF08090B)        // Negro profundo (Navegación lateral/inferior, identidad de marca, series primarias)
-val DrakosDarkGray = Color(0xFF17191E)     // Gris oscuro (Títulos e ink de alto contraste)
-val DrakosRed = Color(0xFFD50016)          // Rojo principal (Acciones estratégicas, nav activo, indicadores clave)
-val DrakosWhite = Color(0xFFFFFFFF)        // Blanco puro (Tarjetas, tablas, modales, header SaaS)
-val DrakosMutedGray = Color(0xFF747780)    // Gris intermedio (Subtítulos, etiquetas secundarias, ejes)
-val DrakosLightCanvas = Color(0xFFF5F6F8)  // Fondo claro equilibrado para trabajo prolongado
+val DrakosDarkGray = Color(0xFF111318)     // Ink principal de alto contraste
+val DrakosRed = Color(0xFFD50016)          // Rojo principal (Reservado para CTAs críticos y alertas reales)
+val DrakosWhite = Color(0xFFFFFFFF)        // Blanco puro (Tarjetas, modales, drawers, header SaaS)
+val DrakosMutedGray = Color(0xFF6B7280)    // Gris intermedio (Subtítulos, etiquetas secundarias, ejes)
+val DrakosLightCanvas = Color(0xFFF8F9FB)  // Lienzo claro minimalista para trabajo prolongado
 
 // Superficies y Bordes SaaS
-val DrakosHairline = Color(0xFFE6E8ED)     // Borde sutil 1dp en tarjetas blancas y tablas
-val DrakosSurfaceSoft = Color(0xFFECEEF2)  // Pills inactivas, track de barras de progreso y fondos suaves
-val DrakosTableRowAlt = Color(0xFFF9FAFB)  // Filas alternadas tipo Linear / Shopify Admin
+val DrakosHairline = Color(0xFFEEF0F4)     // Divisor hairline sutil 1dp en tarjetas y tablas
+val DrakosSurfaceSoft = Color(0xFFF1F3F6)  // Track de tabs segmentados, pills neutras y tracks de progreso
+val DrakosTableRowAlt = Color(0xFFFAFBFD)  // Filas alternadas minimalistas
 
-// Tokens Oscuros Reservados para Navegación (Sidebar / Drawer) y Tarjeta de Marca DRAKOS STORE
+// Tokens Oscuros Reservados para Navegación (Sidebar / BottomBar)
 val DrakosCarbonBg = DrakosBlack
-val DrakosCarbonSurface = DrakosDarkGray
-val DrakosCarbonElevated = Color(0xFF20232B)
-val DrakosGlassBorder = Color(0xFF2A2D36)
+val DrakosCarbonSurface = Color(0xFF13151A)
+val DrakosCarbonElevated = Color(0xFF1C1F26)
+val DrakosGlassBorder = Color(0xFF23262F)
 val DrakosCharcoal = DrakosDarkGray
 val DrakosGraphite = Color(0xFF23262F)
 

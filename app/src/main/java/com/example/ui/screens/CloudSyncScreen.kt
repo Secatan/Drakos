@@ -61,15 +61,19 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.KioscoApp
 import com.example.R
+import androidx.compose.foundation.BorderStroke
 import com.example.data.cloud.onGoogleSignInClicked
 import com.example.data.cloud.signOutGoogle
 import com.example.data.repository.CloudSyncRepository
 import com.example.ui.components.formatCurrency
-import com.example.ui.theme.BrandNavy900
-import com.example.ui.theme.BrandSlate100
-import com.example.ui.theme.BrandSlate700
 import com.example.ui.theme.DangerRed
-import com.example.ui.theme.PrimaryBlue
+import com.example.ui.theme.DrakosDarkGray
+import com.example.ui.theme.DrakosHairline
+import com.example.ui.theme.DrakosMutedGray
+import com.example.ui.theme.DrakosRed
+import com.example.ui.theme.DrakosSurfaceSoft
+import com.example.ui.theme.DrakosWhite
+import com.example.ui.theme.InfoBlue
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
 import com.example.ui.viewmodel.CloudSyncViewModel
@@ -140,8 +144,9 @@ private fun CloudSignInGateCard(
                 .fillMaxWidth()
                 .widthIn(max = 460.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(3.dp)
+            colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+            border = BorderStroke(1.dp, DrakosHairline),
+            elevation = CardDefaults.cardElevation(0.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -150,7 +155,7 @@ private fun CloudSignInGateCard(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Surface(
-                    color = PrimaryBlue.copy(alpha = 0.12f),
+                    color = DrakosRed.copy(alpha = 0.12f),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.size(60.dp)
                 ) {
@@ -158,7 +163,7 @@ private fun CloudSignInGateCard(
                         Icon(
                             imageVector = Icons.Default.CloudOff,
                             contentDescription = "Nube desconectada",
-                            tint = PrimaryBlue,
+                            tint = DrakosRed,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -171,14 +176,14 @@ private fun CloudSignInGateCard(
                     fontFamily = com.example.ui.theme.SpaceGroteskFontFamily,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = BrandNavy900,
+                    color = DrakosDarkGray,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Conecte su cuenta Google empresarial para respaldar y consolidar en tiempo real ventas, cierres Z, transferencias, gastos y parámetros AFIP entre los 10 kioscos.",
                     fontSize = 12.sp,
-                    color = BrandSlate700,
+                    color = DrakosMutedGray,
                     textAlign = TextAlign.Center
                 )
 
@@ -219,7 +224,7 @@ private fun CloudSignInGateCard(
                         )
                     },
                     enabled = !isSigningIn,
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -271,9 +276,10 @@ private fun CloudSyncDashboard(
     ) {
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(2.dp)
+                colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+                border = BorderStroke(1.dp, DrakosHairline),
+                shape = RoundedCornerShape(14.dp),
+                elevation = CardDefaults.cardElevation(0.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(
@@ -289,12 +295,12 @@ private fun CloudSyncDashboard(
                                     text = firebaseUser.displayName ?: "Cuenta Google Conectada",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
-                                    color = BrandNavy900
+                                    color = DrakosDarkGray
                                 )
                                 Text(
                                     text = firebaseUser.email ?: firebaseUser.uid,
                                     fontSize = 11.sp,
-                                    color = BrandSlate700
+                                    color = DrakosMutedGray
                                 )
                             }
                         }
@@ -316,14 +322,15 @@ private fun CloudSyncDashboard(
                     if (!syncMessage.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(
-                            color = PrimaryBlue.copy(alpha = 0.1f),
+                            color = DrakosSurfaceSoft,
+                            border = BorderStroke(1.dp, DrakosHairline),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = syncMessage ?: "",
                                 fontSize = 11.sp,
-                                color = BrandNavy900,
+                                color = DrakosDarkGray,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.padding(8.dp)
                             )
@@ -339,7 +346,7 @@ private fun CloudSyncDashboard(
                         Button(
                             onClick = { cloudViewModel.syncAllLocalToCloud() },
                             enabled = !isSyncing,
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 48.dp)
@@ -348,7 +355,7 @@ private fun CloudSyncDashboard(
                             if (isSyncing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = Color.White,
+                                    color = DrakosWhite,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -368,9 +375,9 @@ private fun CloudSyncDashboard(
                                     .heightIn(min = 48.dp)
                                     .testTag("restore_cloud_settings_button")
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = DrakosDarkGray)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Traer Fiscal", fontSize = 12.sp)
+                                Text("Traer Fiscal", fontSize = 12.sp, color = DrakosDarkGray)
                             }
                         }
                     }
@@ -387,7 +394,7 @@ private fun CloudSyncDashboard(
                             .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = PrimaryBlue)
+                        CircularProgressIndicator(color = DrakosRed)
                     }
                 }
             }
@@ -417,7 +424,7 @@ private fun CloudSyncDashboard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        CloudStatTile("Ventas Nube", "${data.sales.size}", PrimaryBlue, Modifier.weight(1f))
+                        CloudStatTile("Ventas Nube", "${data.sales.size}", InfoBlue, Modifier.weight(1f))
                         CloudStatTile("Turnos / Z", "${data.sessions.size}", SuccessGreen, Modifier.weight(1f))
                         CloudStatTile("Traslados", "${data.transfers.size}", WarningAmber, Modifier.weight(1f))
                         CloudStatTile("Gastos", "${data.expenses.size}", DangerRed, Modifier.weight(1f))
@@ -426,22 +433,23 @@ private fun CloudSyncDashboard(
 
                 item {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        shape = RoundedCornerShape(10.dp)
+                        colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+                        border = BorderStroke(1.dp, DrakosHairline),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CloudSync, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.CloudSync, contentDescription = null, tint = DrakosRed, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Resumen Financiero en la Nube", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BrandNavy900)
+                                Text("Resumen Financiero en la Nube", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = DrakosDarkGray)
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Facturación Sincronizada:", fontSize = 12.sp, color = BrandSlate700)
+                                Text("Facturación Sincronizada:", fontSize = 12.sp, color = DrakosMutedGray)
                                 Text(formatCurrency(data.activeSalesTotal), fontWeight = FontWeight.ExtraBold, color = SuccessGreen)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Gastos Sincronizados:", fontSize = 12.sp, color = BrandSlate700)
+                                Text("Gastos Sincronizados:", fontSize = 12.sp, color = DrakosMutedGray)
                                 Text(formatCurrency(data.activeExpensesTotal), fontWeight = FontWeight.Bold, color = DangerRed)
                             }
                             data.companySettings?.let { cfg ->
@@ -449,7 +457,7 @@ private fun CloudSyncDashboard(
                                 Text(
                                     text = "Fiscal Nube: ${cfg.businessName} • CUIT ${cfg.cuit} • IVA ${cfg.defaultVatRate.toInt()}%",
                                     fontSize = 11.sp,
-                                    color = BrandSlate700
+                                    color = DrakosMutedGray
                                 )
                             }
                         }
@@ -461,21 +469,22 @@ private fun CloudSyncDashboard(
                         text = "Últimas Operaciones Sincronizadas (${data.sales.size} ventas):",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
-                        color = BrandNavy900
+                        color = DrakosDarkGray
                     )
                 }
 
                 if (data.sales.isEmpty()) {
                     item {
                         Surface(
-                            color = BrandSlate100,
+                            color = DrakosSurfaceSoft,
+                            border = BorderStroke(1.dp, DrakosHairline),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = "Aún no hay ventas sincronizadas en Firestore. Presione 'Sincronizar Todo' o realice una venta en el POS.",
                                 fontSize = 12.sp,
-                                color = BrandSlate700,
+                                color = DrakosMutedGray,
                                 modifier = Modifier.padding(14.dp)
                             )
                         }
@@ -483,8 +492,9 @@ private fun CloudSyncDashboard(
                 } else {
                     items(data.sales.take(15)) { sale ->
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(8.dp)
+                            colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+                            border = BorderStroke(1.dp, DrakosHairline),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -494,11 +504,11 @@ private fun CloudSyncDashboard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Receipt, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Receipt, contentDescription = null, tint = InfoBlue, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
-                                        Text("${sale.receiptNumber} • ${sale.branchName}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        Text("${sale.paymentMethod} • ${sale.cashierName} • ${sale.status}", fontSize = 10.sp, color = Color.Gray)
+                                        Text("${sale.receiptNumber} • ${sale.branchName}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DrakosDarkGray)
+                                        Text("${sale.paymentMethod} • ${sale.cashierName} • ${sale.status}", fontSize = 10.sp, color = DrakosMutedGray)
                                     }
                                 }
                                 Text(
@@ -525,7 +535,8 @@ private fun CloudStatTile(
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+        border = BorderStroke(1.dp, DrakosHairline),
         shape = RoundedCornerShape(10.dp)
     ) {
         Column(
@@ -535,7 +546,7 @@ private fun CloudStatTile(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = color)
-            Text(label, fontSize = 10.sp, color = BrandSlate700, textAlign = TextAlign.Center)
+            Text(label, fontSize = 10.sp, color = DrakosMutedGray, textAlign = TextAlign.Center)
         }
     }
 }

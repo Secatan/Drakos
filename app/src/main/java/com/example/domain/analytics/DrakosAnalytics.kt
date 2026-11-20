@@ -27,7 +27,7 @@ import kotlin.math.ceil
 import kotlin.math.roundToLong
 
 object DrakosAnalytics {
-    private val localeEsAr = Locale("es", "AR")
+    private val localeEsAr = Locale.forLanguageTag("es-AR")
     private const val DAY_MS = 86_400_000L
 
     fun buildDailySalesBars(
@@ -68,7 +68,7 @@ object DrakosAnalytics {
                 SalesBarPoint(
                     key = key,
                     shortLabel = shortFmt.format(d),
-                    fullLabel = fullFmt.format(d).replaceFirstChar { it.uppercase() },
+                    fullLabel = fullFmt.format(d).replaceFirstChar { it.uppercase(localeEsAr) },
                     revenueAmount = daySales.sumOf { it.totalAmount },
                     costAmount = dayCosts.sumOf { it.unitCost * it.quantity },
                     ticketCount = daySales.size
@@ -114,8 +114,8 @@ object DrakosAnalytics {
             result.add(
                 SalesBarPoint(
                     key = key,
-                    shortLabel = shortFmt.format(d).replace(".", "").replaceFirstChar { it.uppercase() },
-                    fullLabel = fullFmt.format(d).replaceFirstChar { it.uppercase() },
+                    shortLabel = shortFmt.format(d).replace(".", "").replaceFirstChar { it.uppercase(localeEsAr) },
+                    fullLabel = fullFmt.format(d).replaceFirstChar { it.uppercase(localeEsAr) },
                     revenueAmount = monthSales.sumOf { it.totalAmount },
                     costAmount = monthCosts.sumOf { it.unitCost * it.quantity },
                     ticketCount = monthSales.size
@@ -349,11 +349,25 @@ object DrakosAnalytics {
         val prodMap = products.associateBy { it.id }
         val catMap = categories.associateBy { it.id }
         val filtered = analytics.filter { filterBranchId == null || it.branchId == filterBranchId }
+        val netFactorBySaleId = sales
+            .asSequence()
+            .filter { it.status == "COMPLETED" && (filterBranchId == null || it.branchId == filterBranchId) }
+            .associate { sale ->
+                val factor = if (sale.subtotal > 0.0) {
+                    (sale.totalAmount / sale.subtotal).coerceIn(0.0, 1.0)
+                } else {
+                    1.0
+                }
+                sale.id to factor
+            }
         val byCat = filtered.groupBy { item -> prodMap[item.productId]?.categoryId ?: 0L }
 
         val rawRows = byCat.map { (catId, items) ->
             val units = items.sumOf { it.quantity }
-            val revenue = items.sumOf { it.subtotal }
+            val revenue = items.sumOf { item ->
+                val factor = if (item.saleId > 0L) netFactorBySaleId[item.saleId] ?: 1.0 else 1.0
+                item.subtotal * factor
+            }
             val cost = items.sumOf { it.unitCost * it.quantity }
             val profit = revenue - cost
             val marginPct = if (revenue > 0.0) (profit / revenue) * 100.0 else 0.0

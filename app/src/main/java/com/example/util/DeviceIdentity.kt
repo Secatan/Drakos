@@ -2,6 +2,7 @@ package com.example.util
 
 import android.content.Context
 import android.os.Build
+import androidx.core.content.edit
 import java.util.UUID
 
 object DeviceIdentity {
@@ -19,7 +20,7 @@ object DeviceIdentity {
             .take(8)
             .uppercase()
         val generated = "DRK-$shortCode"
-        prefs.edit().putString(KEY_DEVICE_ID, generated).apply()
+        prefs.edit { putString(KEY_DEVICE_ID, generated) }
         return generated
     }
 

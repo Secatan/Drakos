@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,25 +15,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
@@ -43,17 +35,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -61,320 +51,49 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
 import com.example.data.entity.BranchEntity
 import com.example.data.entity.CashSessionEntity
 import com.example.data.entity.CompanySettingsEntity
 import com.example.data.entity.SaleEntity
 import com.example.data.entity.UserProfileEntity
-import com.example.domain.model.UserRole
-import com.example.ui.theme.BrandNavy800
-import com.example.ui.theme.BrandNavy900
-import com.example.ui.theme.BrandSlate100
-import com.example.ui.theme.BrandSlate700
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
-import com.example.ui.theme.DrakosBorder
-import com.example.ui.theme.DrakosCanvas
-import com.example.ui.theme.DrakosCharcoal
-import com.example.ui.theme.DrakosGraphite
-import com.example.ui.theme.DrakosMutedInk
+import com.example.ui.theme.DrakosDarkGray
+import com.example.ui.theme.DrakosHairline
+import com.example.ui.theme.DrakosLightCanvas
+import com.example.ui.theme.DrakosMutedGray
 import com.example.ui.theme.DrakosRed
-import com.example.ui.theme.DrakosRedBright
+import com.example.ui.theme.DrakosSurfaceSoft
 import com.example.ui.theme.DrakosWhite
 import com.example.ui.theme.JetBrainsMonoFontFamily
-import com.example.ui.theme.PrimaryBlue
-import com.example.ui.theme.SpaceGroteskFontFamily
 import com.example.ui.theme.SuccessGreen
+import kotlinx.coroutines.delay
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val localeEsAr: Locale = Locale.forLanguageTag("es-AR")
+
+/**
+ * Parsea importes o porcentajes ingresados en teclado español/latinoamericano
+ * aceptando tanto coma decimal ("1250,50") como punto ("1250.50").
+ */
+fun parseArsDecimal(raw: String): Double? {
+    val normalized = raw.trim().replace(',', '.')
+    if (normalized.isEmpty()) return null
+    return normalized.toDoubleOrNull()?.takeIf { it.isFinite() }
+}
+
 // Formateador de moneda para Argentina ($ 1.250,00)
 fun formatCurrency(amount: Double): String {
-    val format = NumberFormat.getCurrencyInstance(Locale("es", "AR"))
+    val format = NumberFormat.getCurrencyInstance(localeEsAr)
     return format.format(amount)
 }
 
 fun formatDateTime(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale("es", "AR"))
+    val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", localeEsAr)
     return sdf.format(Date(timestamp))
-}
-
-@Composable
-fun TopHeader(
-    currentUser: UserProfileEntity?,
-    currentBranch: BranchEntity?,
-    branches: List<BranchEntity>,
-    activeSession: CashSessionEntity?,
-    isCloudConnected: Boolean = false,
-    onBranchSelected: (BranchEntity) -> Unit,
-    onOpenUserSwitch: () -> Unit,
-    onOpenCloudSync: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    var branchMenuExpanded by remember { mutableStateOf(false) }
-
-    Surface(
-        color = DrakosBlack,
-        tonalElevation = 4.dp,
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Logo Bulldog Blanco Drakos & Nombre de la Cadena
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(id = R.drawable.img_drakos_bulldog),
-                            contentDescription = "Logo oficial Drako's Store",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color.Black)
-                                .border(1.5.dp, DrakosRed, RoundedCornerShape(10.dp))
-                                .padding(2.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "DRAKOS",
-                                fontFamily = SpaceGroteskFontFamily,
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 1.5.sp,
-                                color = DrakosWhite
-                            )
-                            Text(
-                                text = "24HS • 10 SUCURSALES",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 0.8.sp,
-                                color = Color(0xFFA1A1AA)
-                            )
-                        }
-                    }
-
-                    // Botón de perfil / relevo de operador
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val roleAccent = when (currentUser?.role) {
-                            UserRole.OWNER -> DrakosRedBright
-                            UserRole.BRANCH_MANAGER -> DrakosWhite
-                            UserRole.EMPLOYEE -> SuccessGreen
-                            null -> Color.Gray
-                        }
-                        val roleBg = when (currentUser?.role) {
-                            UserRole.OWNER -> DrakosRed.copy(alpha = 0.22f)
-                            UserRole.BRANCH_MANAGER -> DrakosGraphite
-                            UserRole.EMPLOYEE -> SuccessGreen.copy(alpha = 0.2f)
-                            null -> DrakosGraphite
-                        }
-                        val roleLabel = when (currentUser?.role) {
-                            UserRole.OWNER -> "DUEÑO"
-                            UserRole.BRANCH_MANAGER -> "ENCARGADO"
-                            UserRole.EMPLOYEE -> "CAJERO"
-                            null -> "SIN SESIÓN"
-                        }
-
-                        Surface(
-                            color = roleBg,
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, roleAccent),
-                            modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .clickable { onOpenUserSwitch() }
-                                .testTag("user_profile_chip")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = "Usuario",
-                                    tint = roleAccent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Column {
-                                    Text(
-                                        text = currentUser?.fullName?.take(16) ?: "Invitado",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = DrakosWhite
-                                    )
-                                    Text(
-                                        text = roleLabel,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = roleAccent
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Sub-bar: Sucursal Activa + Nube + Estado de Turno de Caja
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Selector de Sucursal
-                    Box {
-                        Surface(
-                            color = DrakosCharcoal,
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, DrakosGraphite),
-                            modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .clickable(enabled = currentUser?.role == UserRole.OWNER) {
-                                    branchMenuExpanded = true
-                                }
-                                .testTag("branch_selector_button")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Storefront,
-                                    contentDescription = "Sucursal",
-                                    tint = DrakosRedBright,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = currentBranch?.name ?: "Seleccionar Sucursal",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = DrakosWhite
-                                )
-                                if (currentUser?.role == UserRole.OWNER) {
-                                    Text(
-                                        text = " ▼",
-                                        fontSize = 10.sp,
-                                        color = DrakosRedBright
-                                    )
-                                }
-                            }
-                        }
-
-                        if (currentUser?.role == UserRole.OWNER) {
-                            DropdownMenu(
-                                expanded = branchMenuExpanded,
-                                onDismissRequest = { branchMenuExpanded = false }
-                            ) {
-                                Text(
-                                    text = "Red de 10 Kioscos Drakos",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                                    color = DrakosBlack
-                                )
-                                HorizontalDivider()
-                                branches.forEach { branch ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Column {
-                                                Text(branch.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                                Text(branch.address, fontSize = 11.sp, color = DrakosMutedInk)
-                                            }
-                                        },
-                                        onClick = {
-                                            onBranchSelected(branch)
-                                            branchMenuExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Estado de Nube + Estado de Turno de Caja
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Surface(
-                            color = if (isCloudConnected) DrakosRed else DrakosCharcoal,
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isCloudConnected) DrakosRedBright else DrakosGraphite
-                            ),
-                            modifier = Modifier
-                                .clickable { onOpenCloudSync() }
-                                .testTag("top_cloud_status_chip")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isCloudConnected) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                                    contentDescription = if (isCloudConnected) "Nube conectada" else "Conectar nube",
-                                    tint = DrakosWhite,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isCloudConnected) "Nube OK" else "Nube",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DrakosWhite
-                                )
-                            }
-                        }
-
-                        val isOpen = activeSession != null
-                        Surface(
-                            color = if (isOpen) SuccessGreen.copy(alpha = 0.2f) else DangerRed.copy(alpha = 0.22f),
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isOpen) SuccessGreen else DangerRed
-                            )
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isOpen) SuccessGreen else DangerRed)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (isOpen) "Caja Abierta" else "Caja Cerrada",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isOpen) SuccessGreen else DangerRed
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            // Línea inferior Carmesí característica de Drakos
-            HorizontalDivider(thickness = 2.dp, color = DrakosRed)
-        }
-    }
 }
 
 @Composable
@@ -388,7 +107,16 @@ fun PinLoginModal(
 ) {
     var pinInput by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
-    val isLockedOut = System.currentTimeMillis() < lockoutUntilMillis
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lockoutUntilMillis) {
+        nowMillis = System.currentTimeMillis()
+        while (nowMillis < lockoutUntilMillis) {
+            delay(1000L)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+    val isLockedOut = nowMillis < lockoutUntilMillis
+    val remainingSeconds = ((lockoutUntilMillis - nowMillis) / 1000L).coerceAtLeast(0L)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -397,20 +125,20 @@ fun PinLoginModal(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Lock, contentDescription = null, tint = DrakosRed)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Cambio de Operador / Sesión", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DrakosBlack)
+                Text("Cambio de Operador / Sesión", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DrakosDarkGray)
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 currentUser?.let { active ->
                     Surface(
-                        color = BrandSlate100,
+                        color = DrakosSurfaceSoft,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Operador activo:", fontSize = 11.sp, color = BrandSlate700)
-                            Text(active.fullName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BrandNavy900)
+                            Text("Operador activo:", fontSize = 11.sp, color = DrakosMutedGray)
+                            Text(active.fullName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = DrakosDarkGray)
                             Text("${active.role.label} • Usuario: ${active.username}", fontSize = 12.sp, color = DrakosRed, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -419,7 +147,7 @@ fun PinLoginModal(
                 Text(
                     text = "Ingrese el PIN personal del nuevo operador para relevar el turno en esta terminal:",
                     fontSize = 12.sp,
-                    color = BrandSlate700
+                    color = DrakosMutedGray
                 )
 
                 OutlinedTextField(
@@ -458,7 +186,7 @@ fun PinLoginModal(
 
                 if (isLockedOut) {
                     Text(
-                        text = "Terminal bloqueada temporalmente por intentos fallidos.",
+                        text = "Terminal bloqueada temporalmente (${remainingSeconds}s restantes) por intentos fallidos.",
                         fontSize = 11.sp,
                         color = DangerRed,
                         fontWeight = FontWeight.Bold
@@ -555,12 +283,12 @@ fun DigitalReceiptModal(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(DrakosCanvas, RoundedCornerShape(10.dp))
-                    .border(1.dp, DrakosBorder, RoundedCornerShape(10.dp))
+                    .background(DrakosLightCanvas, RoundedCornerShape(10.dp))
+                    .border(1.dp, DrakosHairline, RoundedCornerShape(10.dp))
                     .padding(14.dp)
             ) {
                 Text(
-                    text = companySettings.businessName.uppercase(),
+                    text = companySettings.businessName.uppercase(localeEsAr),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
@@ -572,7 +300,7 @@ fun DigitalReceiptModal(
                     fontSize = 9.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color.Gray,
+                    color = DrakosMutedGray,
                     fontFamily = JetBrainsMonoFontFamily
                 )
                 Text(
@@ -587,7 +315,7 @@ fun DigitalReceiptModal(
                     fontSize = 10.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color.Gray,
+                    color = DrakosMutedGray,
                     fontFamily = JetBrainsMonoFontFamily
                 )
 
@@ -623,8 +351,8 @@ fun DigitalReceiptModal(
                     }
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("IVA discriminado (${companySettings.defaultVatRate.toInt()}%):", fontSize = 11.sp, color = Color.Gray, fontFamily = JetBrainsMonoFontFamily)
-                    Text(formatCurrency(sale.vatAmount), fontSize = 11.sp, color = Color.Gray, fontFamily = JetBrainsMonoFontFamily)
+                    Text("IVA discriminado (${companySettings.defaultVatRate.toInt()}%):", fontSize = 11.sp, color = DrakosMutedGray, fontFamily = JetBrainsMonoFontFamily)
+                    Text(formatCurrency(sale.vatAmount), fontSize = 11.sp, color = DrakosMutedGray, fontFamily = JetBrainsMonoFontFamily)
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -640,7 +368,7 @@ fun DigitalReceiptModal(
                     fontSize = 9.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color.Gray,
+                    color = DrakosMutedGray,
                     fontFamily = JetBrainsMonoFontFamily
                 )
             }
@@ -696,9 +424,9 @@ fun ThermalClosingZModal(
 
     val ticketText = buildString {
         appendLine("==========================================")
-        appendLine("   ${companySettings.businessName.uppercase()}   ")
+        appendLine("   ${companySettings.businessName.uppercase(localeEsAr)}   ")
         appendLine("           CUIT: ${companySettings.cuit}            ")
-        appendLine("      ${companySettings.taxCondition.uppercase()}           ")
+        appendLine("      ${companySettings.taxCondition.uppercase(localeEsAr)}           ")
         appendLine("==========================================")
         appendLine("SUCURSAL: $branchName")
         appendLine("TURNO ID: #${session.id} | ESTADO: ${if (isClosed) "CERRADO" else "EN CURSO"}")
@@ -738,9 +466,9 @@ fun ThermalClosingZModal(
         },
         text = {
             Surface(
-                color = BrandSlate100,
-                shape = RoundedCornerShape(8.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                color = DrakosSurfaceSoft,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, DrakosHairline),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -749,11 +477,12 @@ fun ThermalClosingZModal(
                         .padding(12.dp)
                 ) {
                     Text(
-                        text = companySettings.businessName.uppercase(),
+                        text = companySettings.businessName.uppercase(localeEsAr),
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         fontFamily = JetBrainsMonoFontFamily,
+                        color = DrakosDarkGray,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
@@ -761,7 +490,7 @@ fun ThermalClosingZModal(
                         fontSize = 10.sp,
                         textAlign = TextAlign.Center,
                         fontFamily = JetBrainsMonoFontFamily,
-                        color = Color.DarkGray,
+                        color = DrakosMutedGray,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
@@ -770,7 +499,7 @@ fun ThermalClosingZModal(
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         fontFamily = JetBrainsMonoFontFamily,
-                        color = BrandNavy900,
+                        color = DrakosDarkGray,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     )
 
@@ -806,12 +535,12 @@ fun ThermalClosingZModal(
                     val baseImponible = session.expectedCashAmount / vatDivisor
                     val ivaCalculado = session.expectedCashAmount - baseImponible
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Base Gravada ${vatRate.toInt()}%:", fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = Color.Gray)
-                        Text(formatCurrency(baseImponible), fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = Color.Gray)
+                        Text("Base Gravada ${vatRate.toInt()}%:", fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = DrakosMutedGray)
+                        Text(formatCurrency(baseImponible), fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = DrakosMutedGray)
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("IVA Débito Fiscal:", fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = Color.Gray)
-                        Text(formatCurrency(ivaCalculado), fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = Color.Gray)
+                        Text("IVA Débito Fiscal:", fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = DrakosMutedGray)
+                        Text(formatCurrency(ivaCalculado), fontSize = 9.sp, fontFamily = JetBrainsMonoFontFamily, color = DrakosMutedGray)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

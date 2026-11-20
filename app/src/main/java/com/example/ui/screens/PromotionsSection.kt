@@ -67,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.model.ProductWithStock
 import com.example.domain.model.PromotionDisplay
 import com.example.ui.components.formatCurrency
+import com.example.ui.components.parseArsDecimal
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
 import com.example.ui.theme.DrakosDarkGray
@@ -244,9 +245,9 @@ fun PromotionsManagementSection(
                     fixedPromoPrice = fixedPrice,
                     itemsSpec = itemsSpec,
                     validSchedule = schedule,
-                    isActive = isActive
+                    isActive = isActive,
+                    onSuccess = { showBuilderDialog = false }
                 )
-                showBuilderDialog = false
             }
         )
     }
@@ -504,6 +505,7 @@ fun PromotionBuilderDialog(
         )
     }
     var productSearch by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     val selectedQuantities = remember(existingPromo) {
         mutableStateMapOf<Long, Int>().apply {
@@ -523,8 +525,9 @@ fun PromotionBuilderDialog(
     val regularTotal = selectedQuantities.entries.sumOf { (pid, qty) ->
         (prodMap[pid]?.sellingPrice ?: 0.0) * qty
     }
-    val pctValue = (discountPctInput.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 90.0)
-    val fixedValue = fixedPriceInput.toDoubleOrNull()
+    val parsedPct = parseArsDecimal(discountPctInput)
+    val pctValue = (parsedPct ?: 0.0).coerceIn(0.0, 90.0)
+    val fixedValue = parseArsDecimal(fixedPriceInput)
     val previewFinalPrice = if (useFixedPrice) {
         (fixedValue ?: regularTotal).coerceAtLeast(0.0)
     } else {
@@ -798,6 +801,23 @@ fun PromotionBuilderDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                validationError?.let { err ->
+                    Surface(
+                        color = DrakosRedContainer,
+                        border = BorderStroke(1.dp, DrakosRed),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = DangerRed,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -808,18 +828,34 @@ fun PromotionBuilderDialog(
                             "${qty}x ${prodMap[pid]?.name ?: "Prod"}"
                         }
                     }
-                    onSave(
-                        titleInput,
-                        badgeInput,
-                        autoDesc,
-                        if (useFixedPrice) 0.0 else pctValue,
-                        if (useFixedPrice) fixedValue else null,
-                        itemsSpec,
-                        scheduleInput,
-                        existingPromo?.isActive ?: true
-                    )
+                    when {
+                        titleInput.isBlank() -> {
+                            validationError = "Ingrese un nombre para la promoción."
+                        }
+                        itemsSpec.isBlank() -> {
+                            validationError = "Seleccione al menos un producto para armar el combo."
+                        }
+                        useFixedPrice && (fixedValue == null || fixedValue <= 0.0 || (regularTotal > 0.0 && fixedValue >= regularTotal)) -> {
+                            validationError = "El precio fijo debe ser mayor a 0 y menor al precio de lista (${formatCurrency(regularTotal)})."
+                        }
+                        !useFixedPrice && (parsedPct == null || parsedPct <= 0.0 || parsedPct > 90.0) -> {
+                            validationError = "El porcentaje de descuento debe estar entre 1% y 90%."
+                        }
+                        else -> {
+                            validationError = null
+                            onSave(
+                                titleInput,
+                                badgeInput,
+                                autoDesc,
+                                if (useFixedPrice) 0.0 else pctValue,
+                                if (useFixedPrice) fixedValue else null,
+                                itemsSpec,
+                                scheduleInput,
+                                existingPromo?.isActive ?: true
+                            )
+                        }
+                    }
                 },
-                enabled = titleInput.isNotBlank() && itemsSpec.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("save_promotion_button")

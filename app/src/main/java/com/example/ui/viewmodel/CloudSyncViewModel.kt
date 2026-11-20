@@ -119,6 +119,10 @@ class CloudSyncViewModel(
                 val expenses = localRepository.getAllExpenses().first()
                 val settings = localRepository.getCompanySettings().first() ?: CompanySettingsEntity()
 
+                val transferSummaries = transfers.associate { trf ->
+                    trf.id to localRepository.buildTransferCloudPayloadInfo(trf)
+                }
+
                 val res = cloudRepository.syncFullLocalSnapshot(
                     displayName = accountDisplayName,
                     email = accountEmail,
@@ -129,7 +133,8 @@ class CloudSyncViewModel(
                     transfers = transfers,
                     expenses = expenses,
                     settings = settings,
-                    devices = devices
+                    devices = devices,
+                    transferSummaries = transferSummaries
                 )
                 res.fold(
                     onSuccess = { count ->
@@ -139,6 +144,8 @@ class CloudSyncViewModel(
                         _syncMessage.value = "Error de sincronización: ${err.localizedMessage ?: err.message}"
                     }
                 )
+            } catch (e: CancellationException) {
+                throw e
             } finally {
                 _isSyncing.value = false
             }

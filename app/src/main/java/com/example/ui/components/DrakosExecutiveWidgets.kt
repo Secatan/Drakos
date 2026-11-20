@@ -71,6 +71,7 @@ import com.example.ui.theme.SuccessGreenContainer
 import com.example.ui.theme.SuccessGreenDark
 
 data class BranchSalesBreakdownItem(
+    val branchId: Long = 0L,
     val branchName: String,
     val amount: Double,
     val sharePercent: Double
@@ -80,7 +81,8 @@ data class RecentActivityFeedItem(
     val title: String,
     val subtitle: String,
     val badgeText: String,
-    val kind: ActivityKind
+    val kind: ActivityKind,
+    val saleId: Long? = null
 )
 
 enum class ActivityKind {
@@ -90,24 +92,24 @@ enum class ActivityKind {
 }
 
 /**
- * Tarjeta blanca "Ventas por Sucursal" con barras horizontales jerárquicas
- * (#D50016 líder, #08090B segunda, #747780 restantes) fiel al mockup ejecutivo.
+ * Tarjeta blanca "Ventas por Sucursal" minimalista con filas interactivas para abrir el Drawer de detalle.
  */
 @Composable
 fun DrakosBranchBreakdownCard(
     items: List<BranchSalesBreakdownItem>,
     onSeeAll: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBranchClick: ((BranchSalesBreakdownItem) -> Unit)? = null
 ) {
     Surface(
         color = DrakosWhite,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, DrakosHairline),
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -119,8 +121,8 @@ fun DrakosBranchBreakdownCard(
                     Icon(
                         imageVector = Icons.Default.LocationOn,
                         contentDescription = null,
-                        tint = DrakosRed,
-                        modifier = Modifier.size(18.dp)
+                        tint = DrakosDarkGray,
+                        modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -137,19 +139,19 @@ fun DrakosBranchBreakdownCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onSeeAll() }
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = "Ver todas",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DrakosDarkGray
+                        fontWeight = FontWeight.SemiBold,
+                        color = DrakosMutedGray
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Ver todas las sucursales",
-                        tint = DrakosDarkGray,
+                        tint = DrakosMutedGray,
                         modifier = Modifier.size(13.dp)
                     )
                 }
@@ -170,7 +172,16 @@ fun DrakosBranchBreakdownCard(
                     }
                     val fraction = (row.sharePercent / 100.0).toFloat().coerceIn(0f, 1f)
 
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .let { m ->
+                                if (onBranchClick != null) m.clickable { onBranchClick(row) } else m
+                            }
+                            .padding(vertical = 3.dp)
+                    ) {
                         Text(
                             text = row.branchName,
                             fontSize = 12.sp,
@@ -187,7 +198,7 @@ fun DrakosBranchBreakdownCard(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(7.dp)
+                                    .height(6.dp)
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(DrakosSurfaceSoft)
                             ) {
@@ -195,14 +206,14 @@ fun DrakosBranchBreakdownCard(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth(fraction.coerceAtLeast(0.04f))
-                                            .height(7.dp)
+                                            .height(6.dp)
                                             .clip(RoundedCornerShape(4.dp))
                                             .background(barColor)
                                     )
                                 }
                             }
                             Text(
-                                text = "${String.format("%.1f", row.sharePercent)}%",
+                                text = "${String.format(java.util.Locale.forLanguageTag("es-AR"), "%.1f", row.sharePercent)}%",
                                 fontFamily = JetBrainsMonoFontFamily,
                                 fontSize = 10.sp,
                                 color = DrakosMutedGray
@@ -243,19 +254,19 @@ fun DrakosDonutSummaryCard(
         color = DrakosWhite,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, DrakosHairline),
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.PieChart,
                     contentDescription = null,
-                    tint = DrakosRed,
-                    modifier = Modifier.size(18.dp)
+                    tint = DrakosDarkGray,
+                    modifier = Modifier.size(17.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
@@ -367,7 +378,7 @@ private fun DonutLegendRow(color: Color, label: String, pct: Double) {
             Text(label, fontSize = 11.sp, color = DrakosDarkGray, fontWeight = FontWeight.Medium)
         }
         Text(
-            text = "${String.format("%.1f", pct)}%",
+            text = "${String.format(java.util.Locale.forLanguageTag("es-AR"), "%.1f", pct)}%",
             fontFamily = JetBrainsMonoFontFamily,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
@@ -383,17 +394,18 @@ private fun DonutLegendRow(color: Color, label: String, pct: Double) {
 fun DrakosRecentActivityCard(
     items: List<RecentActivityFeedItem>,
     onSeeMore: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemClick: ((RecentActivityFeedItem) -> Unit)? = null
 ) {
     Surface(
         color = DrakosWhite,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, DrakosHairline),
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
@@ -405,8 +417,8 @@ fun DrakosRecentActivityCard(
                     Icon(
                         imageVector = Icons.Default.History,
                         contentDescription = null,
-                        tint = DrakosRed,
-                        modifier = Modifier.size(18.dp)
+                        tint = DrakosDarkGray,
+                        modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -422,14 +434,14 @@ fun DrakosRecentActivityCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onSeeMore() }
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Text("Ver más", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DrakosDarkGray)
+                    Text("Ver más", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DrakosMutedGray)
                     Spacer(modifier = Modifier.width(3.dp))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Ver más actividad",
-                        tint = DrakosDarkGray,
+                        tint = DrakosMutedGray,
                         modifier = Modifier.size(13.dp)
                     )
                 }
@@ -442,7 +454,7 @@ fun DrakosRecentActivityCard(
                     color = DrakosMutedGray
                 )
             } else {
-                items.take(4).forEach { act ->
+                items.take(4).forEachIndexed { idx, act ->
                     val (icon, iconTint, pillBg, pillTextColor) = when (act.kind) {
                         ActivityKind.SALE -> Quad(Icons.Default.ShoppingCart, SuccessGreen, SuccessGreenContainer, SuccessGreenDark)
                         ActivityKind.INVENTORY -> Quad(Icons.AutoMirrored.Filled.ReceiptLong, InfoBlue, InfoBlueContainer, InfoBlue)
@@ -450,7 +462,13 @@ fun DrakosRecentActivityCard(
                     }
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .let { m ->
+                                if (onItemClick != null) m.clickable { onItemClick(act) } else m
+                            }
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -463,13 +481,13 @@ fun DrakosRecentActivityCard(
                                 modifier = Modifier
                                     .size(30.dp)
                                     .clip(CircleShape)
-                                    .background(iconTint.copy(alpha = 0.14f))
+                                    .background(iconTint.copy(alpha = 0.12f))
                             ) {
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = null,
                                     tint = iconTint,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(10.dp))
@@ -477,7 +495,7 @@ fun DrakosRecentActivityCard(
                                 Text(
                                     text = act.title,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = DrakosDarkGray,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -506,6 +524,9 @@ fun DrakosRecentActivityCard(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
+                    }
+                    if (idx < items.take(4).lastIndex) {
+                        HorizontalDivider(color = DrakosHairline)
                     }
                 }
             }
@@ -631,9 +652,10 @@ private fun BrandMetricCell(
 private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 private fun formatCompactTotal(value: Double): String {
+    val locale = java.util.Locale.forLanguageTag("es-AR")
     return when {
-        value >= 1_000_000.0 -> String.format("$ %.2fM", value / 1_000_000.0)
-        value >= 1_000.0 -> String.format("$ %.1fk", value / 1_000.0)
+        value >= 1_000_000.0 -> String.format(locale, "$ %.2fM", value / 1_000_000.0)
+        value >= 1_000.0 -> String.format(locale, "$ %.1fk", value / 1_000.0)
         else -> formatCurrency(value)
     }
 }

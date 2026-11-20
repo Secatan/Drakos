@@ -52,9 +52,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -69,9 +68,12 @@ import com.example.domain.model.InvoiceType
 import com.example.domain.model.UserRole
 import com.example.ui.components.formatCurrency
 import com.example.ui.components.formatDateTime
+import com.example.ui.components.parseArsDecimal
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
 import com.example.ui.theme.DrakosBorder
+import com.example.ui.theme.DrakosDarkGray
+import com.example.ui.theme.DrakosHairline
 import com.example.ui.theme.DrakosMutedInk
 import com.example.ui.theme.DrakosRed
 import com.example.ui.theme.DrakosWhite
@@ -95,7 +97,10 @@ fun WeeklyOrderSection(
     val allAnalytics by viewModel.allSaleAnalytics.collectAsStateWithLifecycle()
     val weeklyOrders by viewModel.branchWeeklyOrders.collectAsStateWithLifecycle()
 
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val clipboardManager = remember(context) {
+        context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    }
     val branchId = currentBranch?.id ?: 1L
     var coverageDays by remember { mutableIntStateOf(7) }
     var selectedSupplierId by remember { mutableLongStateOf(suppliers.firstOrNull()?.id ?: 1L) }
@@ -179,7 +184,7 @@ fun WeeklyOrderSection(
                         fontFamily = SpaceGroteskFontFamily,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp,
-                        color = DrakosWhite
+                        color = DrakosDarkGray
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedButton(
@@ -193,15 +198,17 @@ fun WeeklyOrderSection(
                                     }
                                     appendLine("Total unidades: $totalOrderUnits | Est: ${formatCurrency(totalOrderCost)}")
                                 }
-                                clipboard.setText(AnnotatedString(text))
+                                clipboardManager.setPrimaryClip(
+                                    android.content.ClipData.newPlainText("Drakos_Pedido", text)
+                                )
                                 viewModel.notifyInfo("Detalle de pedido copiado para enviar por WhatsApp / Email.")
                             },
-                            border = BorderStroke(1.dp, DrakosWhite),
+                            border = BorderStroke(1.dp, DrakosHairline),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = DrakosWhite, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = DrakosDarkGray, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Copiar", fontSize = 11.sp, color = DrakosWhite)
+                            Text("Copiar", fontSize = 11.sp, color = DrakosDarkGray)
                         }
                         Button(
                             onClick = {
@@ -550,6 +557,7 @@ private fun RegisterSupplierInvoiceDialog(
     var paymentStatus by remember { mutableStateOf(InvoicePaymentStatus.PENDING.name) }
     var dueDaysInput by remember { mutableStateOf("15") }
     var notesInput by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -584,16 +592,16 @@ private fun RegisterSupplierInvoiceDialog(
                 }
                 OutlinedTextField(
                     value = invoiceNumber,
-                    onValueChange = { invoiceNumber = it },
+                    onValueChange = { invoiceNumber = it; validationError = null },
                     label = { Text("Número de Factura / Remito") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = amountInput,
-                    onValueChange = { amountInput = it },
+                    onValueChange = { amountInput = it; validationError = null },
                     label = { Text("Importe Total ($)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -610,7 +618,7 @@ private fun RegisterSupplierInvoiceDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = dueDaysInput,
-                        onValueChange = { dueDaysInput = it },
+                        onValueChange = { dueDaysInput = it; validationError = null },
                         label = { Text("Venc. (días)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -624,17 +632,25 @@ private fun RegisterSupplierInvoiceDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                if (!validationError.isNullOrBlank()) {
+                    Text(validationError ?: "", fontSize = 11.sp, color = DangerRed, fontWeight = FontWeight.SemiBold)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
+                    val trimmedNum = invoiceNumber.trim()
+                    val amount = parseArsDecimal(amountInput)
+                    val days = dueDaysInput.trim().toIntOrNull()
                     val supName = suppliers.find { it.id == supplierId }?.name ?: "Proveedor Drakos"
-                    val amount = amountInput.toDoubleOrNull() ?: 0.0
-                    val days = dueDaysInput.toIntOrNull() ?: 15
-                    onConfirm(supplierId, supName, invoiceType, invoiceNumber, amount, paymentStatus, days, notesInput)
+                    when {
+                        trimmedNum.isEmpty() -> validationError = "Ingrese el número de factura o remito."
+                        amount == null || amount <= 0.0 -> validationError = "Ingrese un importe válido mayor a $0."
+                        days == null || days <= 0 -> validationError = "Ingrese los días de vencimiento (> 0)."
+                        else -> onConfirm(supplierId, supName, invoiceType, trimmedNum, amount, paymentStatus, days, notesInput.trim())
+                    }
                 },
-                enabled = invoiceNumber.isNotBlank() && (amountInput.toDoubleOrNull() ?: 0.0) > 0.0,
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed)
             ) {
                 Text("Guardar Comprobante")

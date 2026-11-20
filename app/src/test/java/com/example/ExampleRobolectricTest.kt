@@ -4,15 +4,19 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.KioscoDatabase
+import com.example.data.entity.AuthorizedDeviceEntity
 import com.example.data.entity.BranchEntity
 import com.example.data.entity.BranchInventoryEntity
 import com.example.data.entity.CashSessionEntity
 import com.example.data.entity.CategoryEntity
 import com.example.data.entity.CompanySettingsEntity
+import com.example.data.entity.ExpenseEntity
 import com.example.data.entity.ProductBatchEntity
 import com.example.data.entity.ProductEntity
 import com.example.data.entity.SaleEntity
+import com.example.data.entity.StockTransferEntity
 import com.example.data.entity.UserProfileEntity
+import com.example.data.repository.CloudSyncRepository
 import com.example.data.repository.KioscoRepository
 import com.example.domain.analytics.DrakosAnalytics
 import com.example.domain.model.CartItem
@@ -20,11 +24,16 @@ import com.example.domain.model.DifferenceStatus
 import com.example.domain.model.ExpenseCategory
 import com.example.domain.model.PaymentMethod
 import com.example.domain.model.PriceRoundingStep
+import com.example.domain.model.PromoComponentItem
+import com.example.domain.model.PromotionDisplay
 import com.example.domain.model.SaleItemAnalytics
 import com.example.domain.model.ShiftStatus
 import com.example.domain.model.StockHealthStatus
+import com.example.domain.model.TransferStatus
 import com.example.domain.model.UserRole
 import com.example.domain.security.PinHasher
+import com.example.ui.components.parseArsDecimal
+import com.example.ui.viewmodel.KioscoViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -1015,5 +1024,162 @@ class ExampleRobolectricTest {
         assertTrue(auditActions.contains("PROMOTION_CREATED"))
         assertTrue(auditActions.contains("PROMOTION_TOGGLED"))
         assertTrue(auditActions.contains("PROMOTION_DELETED"))
+    }
+
+    @Test
+    fun `test buildCategoryProfitability prorates sale discounts so category revenue equals net sale total`() {
+        val now = 1_760_000_000_000L
+        val cats = listOf(
+            CategoryEntity(1L, "Bebidas", ""),
+            CategoryEntity(2L, "Golosinas", "")
+        )
+        val prods = listOf(
+            ProductEntity(1L, "7791", "S1", "Coca 500", "", 1L, 500.0, 1000.0),
+            ProductEntity(2L, "7792", "S2", "Alfajor", "", 2L, 500.0, 1000.0)
+        )
+        // Ticket de subtotal $2000 con descuento $400 -> neto $1600 (factor 0.8)
+        val sales = listOf(
+            SaleEntity(
+                id = 77L,
+                branchId = 1L,
+                cashSessionId = 1L,
+                userId = 1L,
+                receiptNumber = "TK-001-DISC",
+                subtotal = 2000.0,
+                discountAmount = 400.0,
+                vatAmount = 277.69,
+                totalAmount = 1600.0,
+                paymentMethod = PaymentMethod.CASH,
+                status = "COMPLETED",
+                idempotencyKey = "disc-77",
+                createdAt = now
+            )
+        )
+        val items = listOf(
+            SaleItemAnalytics(branchId = 1L, productId = 1L, quantity = 1, unitPrice = 1000.0, unitCost = 500.0, subtotal = 1000.0, createdAt = now, saleId = 77L),
+            SaleItemAnalytics(branchId = 1L, productId = 2L, quantity = 1, unitPrice = 1000.0, unitCost = 500.0, subtotal = 1000.0, createdAt = now, saleId = 77L)
+        )
+
+        val stats = DrakosAnalytics.buildCategoryProfitability(items, prods, cats, sales, filterBranchId = 1L)
+        assertEquals(2, stats.size)
+        assertEquals(1600.0, stats.sumOf { it.revenueAmount }, 0.01)
+        assertEquals(600.0, stats.sumOf { it.grossProfit }, 0.01)
+    }
+
+    @Test
+    fun `test CloudSyncRepository doc IDs prevent multi-branch collisions and satisfy Firestore regex`() {
+        val validRegex = Regex("^[a-zA-Z0-9_\\-]+$")
+        val ts = 1_760_000_000_000L
+
+        val saleB1 = SaleEntity(id = 1L, branchId = 1L, cashSessionId = 1L, userId = 1L, receiptNumber = "TK/001", subtotal = 100.0, discountAmount = 0.0, vatAmount = 21.0, totalAmount = 100.0, paymentMethod = PaymentMethod.CASH, idempotencyKey = "", createdAt = ts)
+        val saleB2 = saleB1.copy(branchId = 2L)
+        val saleId1 = CloudSyncRepository.saleDocId(saleB1)
+        val saleId2 = CloudSyncRepository.saleDocId(saleB2)
+        assertNotEquals(saleId1, saleId2)
+        assertTrue(validRegex.matches(saleId1))
+        assertTrue(saleId1.length <= 128)
+
+        val sessId1 = CloudSyncRepository.cashSessionDocId(CashSessionEntity(id = 1L, branchId = 1L, userId = 1L, openingAmount = 1000.0, openedAt = ts))
+        val sessId2 = CloudSyncRepository.cashSessionDocId(CashSessionEntity(id = 1L, branchId = 2L, userId = 1L, openingAmount = 1000.0, openedAt = ts))
+        assertNotEquals(sessId1, sessId2)
+        assertTrue(validRegex.matches(sessId1))
+
+        val trfId1 = CloudSyncRepository.transferDocId(StockTransferEntity(id = 1L, sourceBranchId = 1L, targetBranchId = 2L, status = TransferStatus.REQUESTED, requestedByUserId = 1L, createdAt = ts))
+        val trfId2 = CloudSyncRepository.transferDocId(StockTransferEntity(id = 1L, sourceBranchId = 3L, targetBranchId = 2L, status = TransferStatus.REQUESTED, requestedByUserId = 1L, createdAt = ts))
+        assertNotEquals(trfId1, trfId2)
+        assertTrue(validRegex.matches(trfId1))
+
+        val expId1 = CloudSyncRepository.expenseDocId(ExpenseEntity(id = 1L, branchId = 1L, category = ExpenseCategory.VARIOS, amount = 500.0, description = "X", paymentSource = "CASH_DRAWER", createdByUserId = 1L, createdAt = ts))
+        val expId2 = CloudSyncRepository.expenseDocId(ExpenseEntity(id = 1L, branchId = 4L, category = ExpenseCategory.VARIOS, amount = 500.0, description = "X", paymentSource = "CASH_DRAWER", createdByUserId = 1L, createdAt = ts))
+        assertNotEquals(expId1, expId2)
+        assertTrue(validRegex.matches(expId1))
+    }
+
+    @Test
+    fun `test upsertSyncedDevices demotes auto-bootstrapped secondary device to PENDING when cloud has authorized terminal`() = runBlocking {
+        // Simular otro teléfono nuevo que auto-bootstrapeó su primer registro local como "Bootstrap Terminal Central"
+        val rogueBootstrap = repository.ensureDeviceRegisteredOnStartup("DRK-PHONE2-NEW", "Teléfono Nuevo")
+        assertEquals("AUTHORIZED", rogueBootstrap.status)
+        assertTrue(repository.isDeviceAllowedForStaff("DRK-PHONE2-NEW"))
+
+        // Llegan desde la nube las terminales reales del dueño (no incluyen DRK-PHONE2-NEW)
+        val cloudCentral = AuthorizedDeviceEntity(
+            deviceId = "DRK-OWNER-MAIN",
+            deviceName = "Caja Principal",
+            assignedBranchId = 1L,
+            status = "AUTHORIZED",
+            approvedByUserName = "Roberto Dueño"
+        )
+        val applied = repository.upsertSyncedDevices(listOf(cloudCentral))
+        assertTrue(applied >= 2)
+
+        assertFalse(
+            "El equipo auto-bootstrapeado debe quedar PENDING hasta aprobación explícita o vinculación",
+            repository.isDeviceAllowedForStaff("DRK-PHONE2-NEW")
+        )
+        val demoted = db.authorizedDeviceDao().getDeviceById("DRK-PHONE2-NEW")
+        assertEquals("PENDING", demoted?.status)
+    }
+
+    @Test
+    fun `test parseArsDecimal accepts comma and dot decimal separators and rejects invalid strings`() {
+        assertEquals(1500.50, parseArsDecimal("1500,50")!!, 0.001)
+        assertEquals(1500.50, parseArsDecimal(" 1500.50 ")!!, 0.001)
+        assertEquals(25.0, parseArsDecimal("25")!!, 0.001)
+        assertNull(parseArsDecimal(""))
+        assertNull(parseArsDecimal("   "))
+        assertNull(parseArsDecimal("abc"))
+        assertNull(parseArsDecimal("12,34,56"))
+    }
+
+    @Test
+    fun `test cart promotion recalculation clears discount when combo item quantity is reduced and Fiado stores account holder`() = runBlocking {
+        val branch = BranchEntity(1, "Sucursal Centro", "K01", "Corrientes 1240", "1143712210")
+        db.branchDao().insertBranches(listOf(branch))
+        val p1 = ProductEntity(1L, "77901", "S1", "Energizante", "", 2L, 800.0, 1500.0)
+        val p2 = ProductEntity(2L, "77902", "S2", "Alfajor", "", 1L, 400.0, 1000.0)
+        db.productDao().insertProducts(listOf(p1, p2))
+        db.inventoryDao().insertOrUpdateInventory(BranchInventoryEntity(1L, 1L, 1L, quantityOnHand = 20))
+        db.inventoryDao().insertOrUpdateInventory(BranchInventoryEntity(2L, 1L, 2L, quantityOnHand = 20))
+        db.cashDao().insertSession(CashSessionEntity(id = 1L, branchId = 1L, userId = 1L, openingAmount = 15000.0, status = ShiftStatus.OPEN))
+
+        val vm = KioscoViewModel(repository, null)
+        val combo = PromotionDisplay(
+            id = 10L,
+            title = "Combo Noche",
+            badge = "PROMO",
+            description = "Energizante + Alfajor",
+            discountPercent = 20.0,
+            fixedPromoPrice = 2000.0,
+            validSchedule = "24hs",
+            isActive = true,
+            items = listOf(
+                PromoComponentItem(productId = 1L, barcode = "77901", productName = "Energizante", quantity = 1, unitPrice = 1500.0, unitCost = 800.0, stockAvailable = 20),
+                PromoComponentItem(productId = 2L, barcode = "77902", productName = "Alfajor", quantity = 1, unitPrice = 1000.0, unitCost = 400.0, stockAvailable = 20)
+            ),
+            regularPrice = 2500.0,
+            finalPromoPrice = 2000.0,
+            savingsAmount = 500.0,
+            hasSufficientStock = true
+        )
+
+        vm.applyPromotionToCart(combo)
+        assertEquals(500.0, vm.appliedPromoDiscount.value, 0.01)
+        assertEquals(listOf("Combo Noche"), vm.appliedPromoLabels.value)
+
+        // Al quitar un componente del combo, el descuento promocional debe recalcularse a 0 automáticamente
+        vm.updateCartQuantity(2L, -1)
+        assertEquals(0.0, vm.appliedPromoDiscount.value, 0.01)
+        assertTrue(vm.appliedPromoLabels.value.isEmpty())
+
+        // Verificar que una venta Fiado exige titular si se envía en blanco y guarda el titular cuando es válido
+        val cart = listOf(CartItem(1L, "77901", "Energizante", 1500.0, 800.0, 1, 20))
+        val invalidFiado = repository.recordSale(1L, 1L, "Roberto", cart, PaymentMethod.ACCOUNT, accountHolder = "  ")
+        assertTrue(invalidFiado.isFailure)
+
+        val validFiado = repository.recordSale(1L, 1L, "Roberto", cart, PaymentMethod.ACCOUNT, accountHolder = "Carlos Pérez")
+        assertTrue(validFiado.isSuccess)
+        val savedLog = repository.getAuditLogs().first().first { it.action == "SALE_CONFIRMED" }
+        assertTrue(savedLog.details.contains("Carlos Pérez"))
     }
 }

@@ -1,7 +1,14 @@
 package com.example.util
 
 import android.content.Context
+import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
+import android.os.ParcelFileDescriptor
+import android.print.PageRange
 import android.print.PrintAttributes
+import android.print.PrintDocumentAdapter
 import android.print.PrintManager
 import android.text.TextUtils
 import android.webkit.WebResourceRequest
@@ -101,17 +108,66 @@ object ThermalPrinterHelper {
 
     private fun printHtmlDocument(context: Context, jobName: String, htmlContent: String) {
         val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager ?: return
+        val mainHandler = Handler(Looper.getMainLooper())
         val webView = WebView(context)
+        var cleanedUp = false
+        var printDispatched = false
+
+        val cleanup = Runnable {
+            if (!cleanedUp) {
+                cleanedUp = true
+                webView.webViewClient = WebViewClient()
+                webView.stopLoading()
+                webView.destroy()
+            }
+        }
+        mainHandler.postDelayed(cleanup, 120_000L)
+
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
 
             override fun onPageFinished(view: WebView?, url: String?) {
-                val adapter = view?.createPrintDocumentAdapter(jobName) ?: return
+                if (cleanedUp || printDispatched || view == null) return
+                printDispatched = true
+                val baseAdapter = view.createPrintDocumentAdapter(jobName)
+                val cleanupAdapter = object : PrintDocumentAdapter() {
+                    override fun onStart() {
+                        baseAdapter.onStart()
+                    }
+
+                    override fun onLayout(
+                        oldAttributes: PrintAttributes?,
+                        newAttributes: PrintAttributes?,
+                        cancellationSignal: CancellationSignal?,
+                        callback: LayoutResultCallback?,
+                        extras: Bundle?
+                    ) {
+                        baseAdapter.onLayout(oldAttributes, newAttributes, cancellationSignal, callback, extras)
+                    }
+
+                    override fun onWrite(
+                        pages: Array<out PageRange>?,
+                        destination: ParcelFileDescriptor?,
+                        cancellationSignal: CancellationSignal?,
+                        callback: WriteResultCallback?
+                    ) {
+                        baseAdapter.onWrite(pages, destination, cancellationSignal, callback)
+                    }
+
+                    override fun onFinish() {
+                        try {
+                            baseAdapter.onFinish()
+                        } finally {
+                            mainHandler.removeCallbacks(cleanup)
+                            mainHandler.post(cleanup)
+                        }
+                    }
+                }
                 val attributes = PrintAttributes.Builder()
                     .setMediaSize(PrintAttributes.MediaSize.ISO_A6)
                     .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                     .build()
-                printManager.print(jobName, adapter, attributes)
+                printManager.print(jobName, cleanupAdapter, attributes)
             }
         }
         webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)

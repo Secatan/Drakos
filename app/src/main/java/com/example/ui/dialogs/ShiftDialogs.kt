@@ -40,14 +40,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.CashSessionEntity
 import com.example.ui.components.formatCurrency
-import com.example.ui.theme.BrandNavy900
+import com.example.ui.components.parseArsDecimal
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
-import com.example.ui.theme.DrakosBorder
+import com.example.ui.theme.DrakosDarkGray
+import com.example.ui.theme.DrakosHairline
+import com.example.ui.theme.DrakosMutedGray
 import com.example.ui.theme.DrakosRed
-import com.example.ui.theme.DrakosSurfaceTint
+import com.example.ui.theme.DrakosRedContainer
+import com.example.ui.theme.DrakosSurfaceSoft
 import com.example.ui.theme.DrakosWhite
-import com.example.ui.theme.PrimaryBlue
 
 @Composable
 fun OpenShiftDialog(
@@ -56,46 +58,61 @@ fun OpenShiftDialog(
 ) {
     var openAmountInput by remember { mutableStateOf("15000") }
     var notesInput by remember { mutableStateOf("Fondo de cambio en billetes surtidos") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DrakosWhite,
-        title = { Text("Apertura de Turno de Caja", fontWeight = FontWeight.Bold, color = DrakosBlack) },
+        title = { Text("Apertura de Turno de Caja", fontWeight = FontWeight.Bold, color = DrakosDarkGray) },
         text = {
             Column {
-                Text("Ingrese el importe en efectivo con el que inicia la gaveta:", fontSize = 13.sp)
+                Text("Ingrese el importe en efectivo con el que inicia la gaveta:", fontSize = 13.sp, color = DrakosDarkGray)
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = openAmountInput,
-                    onValueChange = { openAmountInput = it },
+                    onValueChange = {
+                        openAmountInput = it
+                        validationError = null
+                    },
                     label = { Text("Fondo Inicial ($ ARS)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("opening_amount_input")
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = notesInput,
-                    onValueChange = { notesInput = it },
+                    onValueChange = {
+                        notesInput = it
+                        validationError = null
+                    },
                     label = { Text("Observaciones / Billetes") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                validationError?.let { err ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(err, color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val amount = openAmountInput.toDoubleOrNull() ?: 15000.0
-                    onConfirm(amount, notesInput)
+                    val amount = parseArsDecimal(openAmountInput)
+                    if (amount == null || amount < 0.0) {
+                        validationError = "Ingrese un fondo inicial numérico válido (>= 0)."
+                    } else {
+                        onConfirm(amount, notesInput.trim())
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed)
             ) {
-                Text("Abrir Turno", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Abrir Turno", color = DrakosWhite, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("Cancelar", color = DrakosBlack)
+                Text("Cancelar", color = DrakosDarkGray)
             }
         }
     )
@@ -111,6 +128,7 @@ fun BlindCloseShiftDialog(
     var cardDeclaredInput by remember { mutableStateOf("") }
     var closeNotesInput by remember { mutableStateOf("") }
     var showBillCounter by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     var b20k by remember { mutableIntStateOf(0) }
     var b10k by remember { mutableIntStateOf(0) }
@@ -127,7 +145,7 @@ fun BlindCloseShiftDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = DrakosRed)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Arqueo Ciego de Cierre", fontWeight = FontWeight.Bold, color = DrakosBlack)
+                Text("Arqueo Ciego de Cierre", fontWeight = FontWeight.Bold, color = DrakosDarkGray)
             }
         },
         text = {
@@ -139,15 +157,18 @@ fun BlindCloseShiftDialog(
                 Text(
                     text = "Cuente billetes y monedas físicos en gaveta sin referencia del esperado:",
                     fontSize = 12.sp,
-                    color = BrandNavy900
+                    color = DrakosDarkGray
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = countedAmountInput,
-                    onValueChange = { countedAmountInput = it },
+                    onValueChange = {
+                        countedAmountInput = it
+                        validationError = null
+                    },
                     label = { Text("Efectivo Físico Contado ($ ARS)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("counted_cash_input")
                 )
@@ -162,15 +183,15 @@ fun BlindCloseShiftDialog(
                         text = if (showBillCounter) "Ocultar Contador de Billetes" else "Abrir Contador Rápido de Billetes ARS",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DrakosBlack
+                        color = DrakosDarkGray
                     )
                 }
 
                 if (showBillCounter) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Surface(
-                        color = DrakosSurfaceTint,
-                        border = BorderStroke(1.dp, DrakosBorder),
+                        color = DrakosSurfaceSoft,
+                        border = BorderStroke(1.dp, DrakosHairline),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -196,7 +217,10 @@ fun BlindCloseShiftDialog(
                                     color = DrakosRed
                                 )
                                 Button(
-                                    onClick = { countedAmountInput = countedFromBills.toString() },
+                                    onClick = {
+                                        countedAmountInput = countedFromBills.toString()
+                                        validationError = null
+                                    },
                                     colors = ButtonDefaults.buttonColors(containerColor = DrakosBlack),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                     modifier = Modifier.testTag("apply_bill_sum_button")
@@ -216,17 +240,23 @@ fun BlindCloseShiftDialog(
                 ) {
                     OutlinedTextField(
                         value = qrDeclaredInput,
-                        onValueChange = { qrDeclaredInput = it },
+                        onValueChange = {
+                            qrDeclaredInput = it
+                            validationError = null
+                        },
                         label = { Text("QR/Transf ($)", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = cardDeclaredInput,
-                        onValueChange = { cardDeclaredInput = it },
+                        onValueChange = {
+                            cardDeclaredInput = it
+                            validationError = null
+                        },
                         label = { Text("Posnet/Tarj ($)", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
@@ -245,30 +275,63 @@ fun BlindCloseShiftDialog(
                 Text(
                     text = "* El desvío respecto al esperado queda registrado en auditoría para Encargado/Dueño.",
                     fontSize = 10.sp,
-                    color = Color.Gray
+                    color = DrakosMutedGray
                 )
+
+                validationError?.let { err ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = DrakosRedContainer,
+                        border = BorderStroke(1.dp, DrakosRed),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = DangerRed,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val counted = countedAmountInput.toDoubleOrNull() ?: 0.0
-                    val extraNotes = buildList {
-                        if (qrDeclaredInput.isNotBlank()) add("QR decl.: $${qrDeclaredInput.trim()}")
-                        if (cardDeclaredInput.isNotBlank()) add("Tarjetas decl.: $${cardDeclaredInput.trim()}")
-                        if (closeNotesInput.isNotBlank()) add(closeNotesInput.trim())
-                    }.joinToString(" | ")
-                    onConfirm(counted, extraNotes)
+                    val counted = parseArsDecimal(countedAmountInput)
+                    val qrDeclared = if (qrDeclaredInput.isBlank()) 0.0 else parseArsDecimal(qrDeclaredInput)
+                    val cardDeclared = if (cardDeclaredInput.isBlank()) 0.0 else parseArsDecimal(cardDeclaredInput)
+                    when {
+                        counted == null || counted < 0.0 -> {
+                            validationError = "Ingrese el efectivo físico contado (o toque 'Aplicar' en el contador de billetes)."
+                        }
+                        qrDeclared == null || qrDeclared < 0.0 -> {
+                            validationError = "El monto declarado de QR/Transferencias es inválido."
+                        }
+                        cardDeclared == null || cardDeclared < 0.0 -> {
+                            validationError = "El monto declarado de Tarjetas/Posnet es inválido."
+                        }
+                        else -> {
+                            val extraNotes = buildList {
+                                if (qrDeclaredInput.isNotBlank()) add("QR decl.: ${formatCurrency(qrDeclared)}")
+                                if (cardDeclaredInput.isNotBlank()) add("Tarjetas decl.: ${formatCurrency(cardDeclared)}")
+                                if (closeNotesInput.isNotBlank()) add(closeNotesInput.trim())
+                            }.joinToString(" | ")
+                            onConfirm(counted, extraNotes)
+                        }
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
                 modifier = Modifier.testTag("confirm_close_shift_button")
             ) {
-                Text("Confirmar Cierre")
+                Text("Confirmar Cierre", color = DrakosWhite, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("Cancelar", color = DrakosBlack)
+                Text("Cancelar", color = DrakosDarkGray)
             }
         }
     )
@@ -286,20 +349,20 @@ private fun BillCounterRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DrakosBlack)
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DrakosDarkGray)
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(
                 onClick = onMinus,
                 contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.width(48.dp).height(48.dp)
             ) {
-                Text("-", fontWeight = FontWeight.Bold, color = DrakosBlack)
+                Text("-", fontWeight = FontWeight.Bold, color = DrakosDarkGray)
             }
             Text(
                 text = "  $count  ",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = DrakosBlack
+                color = DrakosDarkGray
             )
             OutlinedButton(
                 onClick = onPlus,
@@ -319,48 +382,61 @@ fun CashDropDialog(
 ) {
     var dropAmountInput by remember { mutableStateOf("") }
     var dropReasonInput by remember { mutableStateOf("Retiro parcial a caja fuerte") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DrakosWhite,
-        title = { Text("Retiro Parcial de Efectivo (Drop)", fontWeight = FontWeight.Bold, color = DrakosBlack) },
+        title = { Text("Retiro Parcial de Efectivo (Drop)", fontWeight = FontWeight.Bold, color = DrakosDarkGray) },
         text = {
             Column {
-                Text("Retire efectivo de la gaveta por seguridad para resguardo:", fontSize = 13.sp)
+                Text("Retire efectivo de la gaveta por seguridad para resguardo:", fontSize = 13.sp, color = DrakosDarkGray)
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = dropAmountInput,
-                    onValueChange = { dropAmountInput = it },
+                    onValueChange = {
+                        dropAmountInput = it
+                        validationError = null
+                    },
                     label = { Text("Importe a Retirar ($ ARS)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = dropReasonInput,
-                    onValueChange = { dropReasonInput = it },
+                    onValueChange = {
+                        dropReasonInput = it
+                        validationError = null
+                    },
                     label = { Text("Motivo / Destino") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                validationError?.let { err ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(err, color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val amount = dropAmountInput.toDoubleOrNull() ?: 0.0
-                    if (amount > 0) {
-                        onConfirm(amount, dropReasonInput)
+                    val amount = parseArsDecimal(dropAmountInput)
+                    when {
+                        amount == null || amount <= 0.0 -> validationError = "Ingrese un importe mayor a 0 para el retiro."
+                        dropReasonInput.isBlank() -> validationError = "Debe indicar el motivo o destino del retiro."
+                        else -> onConfirm(amount, dropReasonInput.trim())
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed)
             ) {
-                Text("Registrar Retiro")
+                Text("Registrar Retiro", color = DrakosWhite, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("Cancelar", color = DrakosBlack)
+                Text("Cancelar", color = DrakosDarkGray)
             }
         }
     )
@@ -373,36 +449,51 @@ fun ApproveDifferenceDialog(
     onConfirm: (notes: String) -> Unit
 ) {
     var approvalNoteInput by remember { mutableStateOf("Aprobado por redondeo y faltante de cambio metálico") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DrakosWhite,
-        title = { Text("Aprobar Descuadre de Caja (Turno #${session.id})", fontWeight = FontWeight.Bold, color = DrakosBlack) },
+        title = { Text("Aprobar Descuadre de Caja (Turno #${session.id})", fontWeight = FontWeight.Bold, color = DrakosDarkGray) },
         text = {
             Column {
                 Text("Diferencia registrada: ${formatCurrency(session.cashDifference)}", fontWeight = FontWeight.Bold, color = DangerRed)
-                Text("Fondo inicial: ${formatCurrency(session.openingAmount)}", fontSize = 12.sp, color = Color.Gray)
+                Text("Fondo inicial: ${formatCurrency(session.openingAmount)}", fontSize = 12.sp, color = DrakosMutedGray)
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = approvalNoteInput,
-                    onValueChange = { approvalNoteInput = it },
+                    onValueChange = {
+                        approvalNoteInput = it
+                        validationError = null
+                    },
                     label = { Text("Justificación de Aprobación") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                validationError?.let { err ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(err, color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(approvalNoteInput) },
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                onClick = {
+                    val trimmed = approvalNoteInput.trim()
+                    if (trimmed.isBlank()) {
+                        validationError = "Debe justificar la aprobación del descuadre."
+                    } else {
+                        onConfirm(trimmed)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = DrakosRed)
             ) {
-                Text("Confirmar Aprobación")
+                Text("Confirmar Aprobación", color = DrakosWhite, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("Cancelar", color = DrakosBlack)
+                Text("Cancelar", color = DrakosDarkGray)
             }
         }
     )

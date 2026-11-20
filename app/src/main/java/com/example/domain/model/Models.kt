@@ -232,7 +232,8 @@ data class SaleItemAnalytics(
     val unitPrice: Double,
     val unitCost: Double,
     val subtotal: Double,
-    val createdAt: Long
+    val createdAt: Long,
+    val saleId: Long = 0L
 )
 
 enum class PriceRoundingStep(val step: Int, val label: String) {

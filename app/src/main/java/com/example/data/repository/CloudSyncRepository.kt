@@ -211,7 +211,7 @@ class CloudSyncRepository(
         } catch (e: Exception) {
             return Result.failure(e)
         }
-        val docId = customDocId ?: "sale_${sale.id}"
+        val docId = customDocId ?: saleDocId(sale)
         val docRef = db.collection("users").document(uid).collection("sales").document(docId)
         return try {
             val snap = docRef.get().await()
@@ -260,7 +260,7 @@ class CloudSyncRepository(
         } catch (e: Exception) {
             return Result.failure(e)
         }
-        val docId = customDocId ?: "sess_${session.id}"
+        val docId = customDocId ?: cashSessionDocId(session)
         val docRef = db.collection("users").document(uid).collection("cash_sessions").document(docId)
         return try {
             val snap = docRef.get().await()
@@ -329,7 +329,7 @@ class CloudSyncRepository(
         } catch (e: Exception) {
             return Result.failure(e)
         }
-        val docId = customDocId ?: "trf_${transfer.id}"
+        val docId = customDocId ?: transferDocId(transfer)
         val docRef = db.collection("users").document(uid).collection("transfers").document(docId)
         return try {
             val snap = docRef.get().await()
@@ -392,7 +392,7 @@ class CloudSyncRepository(
         } catch (e: Exception) {
             return Result.failure(e)
         }
-        val docId = customDocId ?: "exp_${expense.id}"
+        val docId = customDocId ?: expenseDocId(expense)
         val docRef = db.collection("users").document(uid).collection("expenses").document(docId)
         return try {
             val snap = docRef.get().await()
@@ -460,10 +460,8 @@ class CloudSyncRepository(
         }
     }
 
-    private fun sanitizeDocKey(prefix: String, raw: String): String {
-        val clean = raw.trim().replace(Regex("[^a-zA-Z0-9_\\-]"), "_")
-        return "${prefix}_${clean.take(110).ifBlank { "item" }}"
-    }
+    private fun sanitizeDocKey(prefix: String, raw: String): String =
+        Companion.sanitizeDocKey(prefix, raw)
 
     suspend fun syncStaffProfile(user: UserProfileEntity): Result<String> {
         val uid = try {
@@ -626,39 +624,99 @@ class CloudSyncRepository(
         transfers: List<StockTransferEntity>,
         expenses: List<ExpenseEntity>,
         settings: CompanySettingsEntity,
-        devices: List<AuthorizedDeviceEntity> = emptyList()
-    ): Result<Int> {
-        val branchMap = branches.associate { it.id to it.name }
-        val userMap = users.associate { it.id to it.fullName }
-        var syncedCount = 0
+        devices: List<AuthorizedDeviceEntity> = emptyList(),
+        transferSummaries: Map<Long, Pair<String, Int>> = emptyMap()
+    ): Result<Int> = coroutineScope {
+        try {
+            val branchMap = branches.associate { it.id to it.name }
+            val userMap = users.associate { it.id to it.fullName }
+            var syncedCount = 0
 
-        ensureWorkspaceProfile(displayName, email, settings.businessName).onFailure { return Result.failure(it) }
-        syncCompanySettings(settings).onFailure { return Result.failure(it) }
-        syncedCount += 1
+            ensureWorkspaceProfile(displayName, email, settings.businessName).onFailure { return@coroutineScope Result.failure(it) }
+            syncCompanySettings(settings).onFailure { return@coroutineScope Result.failure(it) }
+            syncedCount += 1
 
-        val (uCount, dCount) = syncAllStaffAndDevices(users, devices).getOrElse { return Result.failure(it) }
-        syncedCount += uCount + dCount
-        sales.take(50).forEach { sale ->
-            val bName = branchMap[sale.branchId] ?: "Sucursal K0${sale.branchId}"
-            val cName = userMap[sale.userId] ?: "Cajero #${sale.userId}"
-            syncSale(sale, bName, cName).onFailure { return Result.failure(it) }
-            syncedCount += 1
+            val (uCount, dCount) = syncAllStaffAndDevices(users, devices).getOrElse { return@coroutineScope Result.failure(it) }
+            syncedCount += uCount + dCount
+
+            sales.chunked(10).forEach { chunk ->
+                val results = chunk.map { sale ->
+                    async {
+                        val bName = branchMap[sale.branchId] ?: "Sucursal K0${sale.branchId}"
+                        val cName = userMap[sale.userId] ?: "Cajero #${sale.userId}"
+                        syncSale(sale, bName, cName)
+                    }
+                }.awaitAll()
+                results.forEach { res ->
+                    res.onFailure { return@coroutineScope Result.failure(it) }
+                    syncedCount += 1
+                }
+            }
+
+            sessions.chunked(10).forEach { chunk ->
+                val results = chunk.map { sess ->
+                    async {
+                        val bName = branchMap[sess.branchId] ?: "Sucursal K0${sess.branchId}"
+                        val oName = userMap[sess.userId] ?: "Operador #${sess.userId}"
+                        syncCashSession(sess, bName, oName)
+                    }
+                }.awaitAll()
+                results.forEach { res ->
+                    res.onFailure { return@coroutineScope Result.failure(it) }
+                    syncedCount += 1
+                }
+            }
+
+            transfers.filter { it.sourceBranchId != it.targetBranchId }.chunked(10).forEach { chunk ->
+                val results = chunk.map { trf ->
+                    async {
+                        val (summary, totalQty) = transferSummaries[trf.id]
+                            ?: ("Transferencia K0${trf.sourceBranchId} -> K0${trf.targetBranchId}" to 1)
+                        syncTransfer(trf, summary, totalQty.coerceAtLeast(1))
+                    }
+                }.awaitAll()
+                results.forEach { res ->
+                    res.onFailure { return@coroutineScope Result.failure(it) }
+                    syncedCount += 1
+                }
+            }
+
+            expenses.chunked(10).forEach { chunk ->
+                val results = chunk.map { exp -> async { syncExpense(exp) } }.awaitAll()
+                results.forEach { res ->
+                    res.onFailure { return@coroutineScope Result.failure(it) }
+                    syncedCount += 1
+                }
+            }
+
+            Result.success(syncedCount)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
         }
-        sessions.take(30).forEach { sess ->
-            val bName = branchMap[sess.branchId] ?: "Sucursal K0${sess.branchId}"
-            val oName = userMap[sess.userId] ?: "Operador #${sess.userId}"
-            syncCashSession(sess, bName, oName).onFailure { return Result.failure(it) }
-            syncedCount += 1
+    }
+
+    companion object {
+        fun sanitizeDocKey(prefix: String, raw: String): String {
+            val cleanPrefix = prefix.trim().replace(Regex("[^a-zA-Z0-9_\\-]"), "_").take(36).ifBlank { "doc" }
+            val maxBodyLen = (128 - cleanPrefix.length - 1).coerceAtLeast(16)
+            val cleanBody = raw.trim().replace(Regex("[^a-zA-Z0-9_\\-]"), "_").take(maxBodyLen).ifBlank { "item" }
+            return "${cleanPrefix}_${cleanBody}".take(128)
         }
-        transfers.take(30).forEach { trf ->
-            syncTransfer(trf, "Transferencia K0${trf.sourceBranchId} -> K0${trf.targetBranchId}", 1)
-                .onFailure { return Result.failure(it) }
-            syncedCount += 1
+
+        fun saleDocId(sale: SaleEntity): String {
+            val suffix = sale.idempotencyKey.ifBlank { sale.id.toString() }
+            return sanitizeDocKey("sale_b${sale.branchId}", "${sale.createdAt}_${suffix}")
         }
-        expenses.take(30).forEach { exp ->
-            syncExpense(exp).onFailure { return Result.failure(it) }
-            syncedCount += 1
-        }
-        return Result.success(syncedCount)
+
+        fun cashSessionDocId(session: CashSessionEntity): String =
+            sanitizeDocKey("sess_b${session.branchId}", "u${session.userId}_${session.openedAt}_${session.id}")
+
+        fun transferDocId(transfer: StockTransferEntity): String =
+            sanitizeDocKey("trf_b${transfer.sourceBranchId}_t${transfer.targetBranchId}", "${transfer.createdAt}_${transfer.id}")
+
+        fun expenseDocId(expense: ExpenseEntity): String =
+            sanitizeDocKey("exp_b${expense.branchId}", "${expense.createdAt}_${expense.id}")
     }
 }

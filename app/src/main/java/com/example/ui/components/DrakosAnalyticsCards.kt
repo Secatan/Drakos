@@ -59,16 +59,16 @@ fun HourlyHeatmapCard(
         colors = CardDefaults.cardColors(containerColor = DrakosWhite),
         border = BorderStroke(1.dp, DrakosBorder),
         shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, tint = DrakosRed, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Schedule, contentDescription = null, tint = DrakosBlack, modifier = Modifier.size(17.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Mapa de Calor 24h por Franja",
@@ -242,7 +242,7 @@ fun CategoryProfitabilityCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "${stat.unitsSold} u. • Margen: ${String.format("%.1f", stat.marginPercent)}% (${String.format("%.0f", stat.shareOfProfitPercent)}% utilidad)",
+                                    text = "${stat.unitsSold} u. • Margen: ${String.format(java.util.Locale.forLanguageTag("es-AR"), "%.1f", stat.marginPercent)}% (${String.format(java.util.Locale.forLanguageTag("es-AR"), "%.0f", stat.shareOfProfitPercent)}% utilidad)",
                                     fontSize = 10.sp,
                                     color = DrakosMutedInk
                                 )

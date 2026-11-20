@@ -91,15 +91,15 @@ fun BranchCommsScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Comunicación entre Locales",
+                    text = "Avisos entre Locales (${messages.size})",
                     fontFamily = SpaceGroteskFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
+                    fontSize = 15.sp,
                     color = DrakosBlack
                 )
                 Text(
-                    text = "Coordinación operativa y pedidos de stock entre las 10 sucursales Drakos.",
-                    fontSize = 12.sp,
+                    text = "Coordinación operativa y pedidos de stock",
+                    fontSize = 11.sp,
                     color = DrakosMutedInk
                 )
             }
@@ -107,6 +107,7 @@ fun BranchCommsScreen(
             Button(
                 onClick = { showComposeDialog = true },
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .heightIn(min = 48.dp)
                     .testTag("new_branch_message_button")
@@ -147,10 +148,11 @@ fun BranchCommsScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                         border = BorderStroke(
-                            width = if (!msg.isRead) 1.5.dp else 1.dp,
-                            color = if (!msg.isRead) DrakosRed.copy(alpha = 0.6f) else DrakosBorder
+                            width = 1.dp,
+                            color = if (!msg.isRead) DrakosRed.copy(alpha = 0.5f) else DrakosBorder
                         ),
-                        shape = RoundedCornerShape(12.dp)
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(

@@ -152,7 +152,8 @@ interface SaleDao {
     @Query(
         """
         SELECT s.branchId AS branchId, si.productId AS productId, si.quantity AS quantity,
-               si.unitPrice AS unitPrice, si.unitCost AS unitCost, si.subtotal AS subtotal, s.createdAt AS createdAt
+               si.unitPrice AS unitPrice, si.unitCost AS unitCost, si.subtotal AS subtotal,
+               s.createdAt AS createdAt, si.saleId AS saleId
         FROM sale_items si
         INNER JOIN sales s ON si.saleId = s.id
         WHERE s.status = 'COMPLETED'

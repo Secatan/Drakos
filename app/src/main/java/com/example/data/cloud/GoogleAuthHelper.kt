@@ -9,6 +9,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import com.example.R
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
@@ -97,6 +98,9 @@ fun attemptAutoSignIn(
             } else {
                 onUnauthenticated()
             }
+        } catch (e: NoCredentialException) {
+            Log.d(AUTH_TAG, "No cached Google credentials for auto sign-in: ${e.message}")
+            onUnauthenticated()
         } catch (e: Exception) {
             Log.d(AUTH_TAG, "Silent Google auto sign-in unavailable: ${e.message}")
             onUnauthenticated()
@@ -150,6 +154,9 @@ fun onGoogleSignInClicked(
         } catch (e: GetCredentialCancellationException) {
             Log.w(AUTH_TAG, "Google Sign-In flow cancelled or dismissed: ${e.message}", e)
             onAuthCancelled()
+        } catch (e: NoCredentialException) {
+            Log.w(AUTH_TAG, "No Google accounts available on device: ${e.message}", e)
+            onAuthError("No se encontraron cuentas de Google disponibles en este teléfono.")
         } catch (e: Exception) {
             Log.e(AUTH_TAG, "Google Sign-In failed", e)
             onAuthError(e.localizedMessage ?: "Error al iniciar sesión con Google.")

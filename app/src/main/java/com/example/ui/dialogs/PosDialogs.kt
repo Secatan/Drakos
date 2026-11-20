@@ -41,8 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
 import com.example.domain.model.PaymentMethod
 import com.example.ui.components.formatCurrency
+import com.example.ui.components.parseArsDecimal
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
 import com.example.ui.theme.DrakosDarkGray
@@ -50,6 +52,7 @@ import com.example.ui.theme.DrakosHairline
 import com.example.ui.theme.DrakosLightCanvas
 import com.example.ui.theme.DrakosMutedGray
 import com.example.ui.theme.DrakosRed
+import com.example.ui.theme.DrakosRedContainer
 import com.example.ui.theme.DrakosWhite
 import com.example.ui.theme.JetBrainsMonoFontFamily
 import com.example.ui.theme.SpaceGroteskFontFamily
@@ -65,17 +68,21 @@ fun PaymentDialog(
     promoDiscount: Double = 0.0,
     promoLabels: List<String> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirmPayment: (PaymentMethod, Double) -> Unit
+    onConfirmPayment: (PaymentMethod, Double, String?) -> Unit
 ) {
     var selectedMethod by remember { mutableStateOf(PaymentMethod.CASH) }
     var cashPaidInput by remember { mutableStateOf("") }
     var discountInput by remember { mutableStateOf("") }
+    var accountHolderInput by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
-    val extraDiscount = (discountInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+    val parsedDiscount = parseArsDecimal(discountInput)
+    val extraDiscount = (parsedDiscount ?: 0.0).coerceAtLeast(0.0)
     val totalDiscount = (promoDiscount + extraDiscount).coerceAtMost(totalAmount)
     val finalToPay = (totalAmount - totalDiscount).coerceAtLeast(0.0)
 
-    val cashPaid = cashPaidInput.toDoubleOrNull() ?: 0.0
+    val parsedCashPaid = parseArsDecimal(cashPaidInput)
+    val cashPaid = parsedCashPaid ?: 0.0
     val changeAmount = (cashPaid - finalToPay).coerceAtLeast(0.0)
 
     AlertDialog(
@@ -182,7 +189,10 @@ fun PaymentDialog(
                     items(methods) { method ->
                         FilterChip(
                             selected = selectedMethod == method,
-                            onClick = { selectedMethod = method },
+                            onClick = {
+                                selectedMethod = method
+                                validationError = null
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = DrakosRed,
                                 selectedLabelColor = DrakosWhite
@@ -194,14 +204,42 @@ fun PaymentDialog(
                 }
 
                 if (selectedMethod == PaymentMethod.CASH) {
-                    OutlinedTextField(
-                        value = cashPaidInput,
-                        onValueChange = { cashPaidInput = it },
-                        label = { Text("Paga con ($ ARS)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("cash_paid_input")
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = cashPaidInput,
+                            onValueChange = {
+                                cashPaidInput = it
+                                validationError = null
+                            },
+                            label = { Text("Paga con ($ ARS)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("cash_paid_input")
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                cashPaidInput = if (finalToPay % 1.0 == 0.0) {
+                                    finalToPay.toInt().toString()
+                                } else {
+                                    String.format(java.util.Locale.US, "%.2f", finalToPay)
+                                }
+                                validationError = null
+                            },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("exact_cash_button")
+                        ) {
+                            Text("Pago exacto", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DrakosDarkGray)
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -210,9 +248,13 @@ fun PaymentDialog(
                     ) {
                         Text("VUELTO A ENTREGAR:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DrakosDarkGray)
                         Text(
-                            text = formatCurrency(changeAmount),
+                            text = if (cashPaidInput.isNotBlank() && cashPaid < finalToPay) {
+                                "Faltan ${formatCurrency(finalToPay - cashPaid)}"
+                            } else {
+                                formatCurrency(changeAmount)
+                            },
                             fontFamily = SpaceGroteskFontFamily,
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = if (cashPaid >= finalToPay) SuccessGreenDark else DangerRed
                         )
@@ -233,7 +275,6 @@ fun PaymentDialog(
                         )
                     }
                 } else if (selectedMethod == PaymentMethod.ACCOUNT) {
-                    var accountHolderInput by remember { mutableStateOf("") }
                     Surface(
                         color = WarningAmberContainer,
                         border = BorderStroke(1.dp, WarningAmber),
@@ -246,10 +287,15 @@ fun PaymentDialog(
                             Spacer(modifier = Modifier.height(6.dp))
                             OutlinedTextField(
                                 value = accountHolderInput,
-                                onValueChange = { accountHolderInput = it },
-                                label = { Text("Titular de cuenta", fontSize = 11.sp) },
+                                onValueChange = {
+                                    accountHolderInput = it
+                                    validationError = null
+                                },
+                                label = { Text("Titular de cuenta *", fontSize = 11.sp) },
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("fiado_account_holder_input")
                             )
                         }
                     }
@@ -269,17 +315,60 @@ fun PaymentDialog(
 
                 OutlinedTextField(
                     value = discountInput,
-                    onValueChange = { discountInput = it },
+                    onValueChange = {
+                        discountInput = it
+                        validationError = null
+                    },
                     label = { Text("Descuento adicional ($ ARS)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                validationError?.let { err ->
+                    Surface(
+                        color = DrakosRedContainer,
+                        border = BorderStroke(1.dp, DrakosRed),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = DangerRed,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirmPayment(selectedMethod, totalDiscount) },
+                onClick = {
+                    val invalidDiscount = discountInput.isNotBlank() && (parsedDiscount == null || parsedDiscount < 0.0)
+                    when {
+                        invalidDiscount -> {
+                            validationError = "Ingrese un descuento numérico válido mayor o igual a 0."
+                        }
+                        selectedMethod == PaymentMethod.CASH && parsedCashPaid == null -> {
+                            validationError = "Ingrese el importe recibido en efectivo o toque 'Pago exacto'."
+                        }
+                        selectedMethod == PaymentMethod.CASH && cashPaid < finalToPay -> {
+                            validationError = "El efectivo abonado es insuficiente para cubrir ${formatCurrency(finalToPay)}."
+                        }
+                        selectedMethod == PaymentMethod.ACCOUNT && accountHolderInput.isBlank() -> {
+                            validationError = "Debe indicar el nombre del titular para fiado / cuenta corriente."
+                        }
+                        else -> {
+                            onConfirmPayment(
+                                selectedMethod,
+                                totalDiscount,
+                                accountHolderInput.trim().ifBlank { null }
+                            )
+                        }
+                    }
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier

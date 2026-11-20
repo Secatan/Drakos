@@ -55,6 +55,7 @@ import com.example.data.entity.SupplierEntity
 import com.example.domain.model.MovementType
 import com.example.domain.model.ProductWithStock
 import com.example.ui.components.BarcodeScannerDialog
+import com.example.ui.components.parseArsDecimal
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
 import com.example.ui.theme.DrakosBorder
@@ -77,6 +78,7 @@ fun InventoryAdjustmentDialog(
 ) {
     var qtyChangeInput by remember { mutableStateOf("1") }
     var notesInput by remember { mutableStateOf("Rotura de empaque en góndola") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -97,7 +99,10 @@ fun InventoryAdjustmentDialog(
 
                 OutlinedTextField(
                     value = qtyChangeInput,
-                    onValueChange = { qtyChangeInput = it },
+                    onValueChange = {
+                        qtyChangeInput = it
+                        validationError = null
+                    },
                     label = {
                         Text(if (adjustmentType == MovementType.LOSS) "Cantidad a dar de baja (positiva)" else "Variación de unidades (+ o -)")
                     },
@@ -110,18 +115,39 @@ fun InventoryAdjustmentDialog(
 
                 OutlinedTextField(
                     value = notesInput,
-                    onValueChange = { notesInput = it },
+                    onValueChange = {
+                        notesInput = it
+                        validationError = null
+                    },
                     label = { Text("Motivo / Justificación obligatoria") },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                validationError?.let { err ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(err, color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val rawQty = qtyChangeInput.toIntOrNull() ?: 1
-                    val delta = if (adjustmentType == MovementType.LOSS) -kotlin.math.abs(rawQty) else rawQty
-                    onConfirm(delta, notesInput)
+                    val rawQty = qtyChangeInput.trim().toIntOrNull()
+                    when {
+                        rawQty == null || rawQty == 0 -> {
+                            validationError = "Ingrese una variación de unidades distinta de cero."
+                        }
+                        adjustmentType == MovementType.LOSS && rawQty < 0 -> {
+                            validationError = "Para mermas ingrese la cantidad positiva a descontar."
+                        }
+                        notesInput.isBlank() -> {
+                            validationError = "El motivo del ajuste es obligatorio."
+                        }
+                        else -> {
+                            val delta = if (adjustmentType == MovementType.LOSS) -kotlin.math.abs(rawQty) else rawQty
+                            onConfirm(delta, notesInput.trim())
+                        }
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (adjustmentType == MovementType.LOSS) DangerRed else DrakosRed
@@ -166,22 +192,29 @@ fun GoodsReceiptDialog(
 
     var showInlineScanner by remember { mutableStateOf(false) }
     var unmatchedBarcode by remember { mutableStateOf<String?>(null) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     val selectedProduct = products.find { it.productId == selectedProdId }
     val modeChipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = DrakosBlack,
         selectedLabelColor = DrakosWhite
     )
+    val parsedPackCount = packCountInput.trim().toIntOrNull()
+    val parsedUnitsPerPack = unitsPerPackInput.trim().toIntOrNull()
+    val parsedSingleQty = qtyInput.trim().toIntOrNull()
+    val parsedPackCost = parseArsDecimal(packCostInput)
+    val parsedSingleCost = parseArsDecimal(costInput)
+
     val effectiveQty = if (isPackMode) {
-        (packCountInput.toIntOrNull()?.coerceAtLeast(1) ?: 1) * (unitsPerPackInput.toIntOrNull()?.coerceAtLeast(1) ?: 1)
+        (parsedPackCount?.coerceAtLeast(1) ?: 1) * (parsedUnitsPerPack?.coerceAtLeast(1) ?: 1)
     } else {
-        qtyInput.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        parsedSingleQty?.coerceAtLeast(1) ?: 1
     }
     val effectiveUnitCost = if (isPackMode) {
-        val perPack = (unitsPerPackInput.toIntOrNull()?.coerceAtLeast(1) ?: 1).toDouble()
-        (packCostInput.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0) / perPack
+        val perPack = (parsedUnitsPerPack?.coerceAtLeast(1) ?: 1).toDouble()
+        (parsedPackCost?.coerceAtLeast(0.0) ?: 0.0) / perPack
     } else {
-        costInput.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
+        parsedSingleCost?.coerceAtLeast(0.0) ?: 0.0
     }
 
     fun applyScannedBarcode(code: String) {
@@ -468,20 +501,65 @@ fun GoodsReceiptDialog(
                     )
                     OutlinedTextField(
                         value = expiryDaysInput,
-                        onValueChange = { expiryDaysInput = it },
+                        onValueChange = {
+                            expiryDaysInput = it
+                            validationError = null
+                        },
                         label = { Text("Vence en (días)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                validationError?.let { err ->
+                    Surface(
+                        color = DrakosRedContainer,
+                        border = BorderStroke(1.dp, DrakosRed),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = DangerRed,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val days = expiryDaysInput.toIntOrNull()?.coerceAtLeast(1) ?: 90
-                    onConfirm(selectedProdId, selectedSupplierId, effectiveQty, effectiveUnitCost, invoiceRefInput, batchNumberInput, days)
+                    val days = expiryDaysInput.trim().toIntOrNull()
+                    val qtyInvalid = if (isPackMode) {
+                        parsedPackCount == null || parsedPackCount <= 0 || parsedUnitsPerPack == null || parsedUnitsPerPack <= 0
+                    } else {
+                        parsedSingleQty == null || parsedSingleQty <= 0
+                    }
+                    val costInvalid = if (isPackMode) {
+                        parsedPackCost == null || parsedPackCost < 0.0
+                    } else {
+                        parsedSingleCost == null || parsedSingleCost < 0.0
+                    }
+                    when {
+                        selectedProduct == null -> validationError = "Seleccione un producto válido del catálogo."
+                        qtyInvalid -> validationError = "Ingrese una cantidad entera mayor a 0."
+                        costInvalid -> validationError = "Ingrese un costo numérico válido (>= 0)."
+                        invoiceRefInput.isBlank() -> validationError = "Ingrese el número de remito o factura."
+                        days == null || days <= 0 -> validationError = "Ingrese los días hasta vencimiento (> 0)."
+                        else -> onConfirm(
+                            selectedProdId,
+                            selectedSupplierId,
+                            effectiveQty,
+                            effectiveUnitCost,
+                            invoiceRefInput.trim(),
+                            batchNumberInput.trim().ifBlank { "LOT-AUTO" },
+                            days
+                        )
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
                 modifier = Modifier.testTag("confirm_goods_receipt_button")
@@ -522,6 +600,7 @@ fun NewProductDialog(
     var costInput by remember { mutableStateOf("") }
     var selectedCatId by remember { mutableStateOf(categories.firstOrNull()?.id ?: 1L) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -543,7 +622,10 @@ fun NewProductDialog(
                 ) {
                     OutlinedTextField(
                         value = barcodeInput,
-                        onValueChange = { barcodeInput = it },
+                        onValueChange = {
+                            barcodeInput = it
+                            validationError = null
+                        },
                         label = { Text("Código de Barras (EAN)") },
                         singleLine = true,
                         textStyle = androidx.compose.ui.text.TextStyle(fontFamily = JetBrainsMonoFontFamily),
@@ -573,7 +655,10 @@ fun NewProductDialog(
 
                 OutlinedTextField(
                     value = nameInput,
-                    onValueChange = { nameInput = it },
+                    onValueChange = {
+                        nameInput = it
+                        validationError = null
+                    },
                     label = { Text("Nombre del Producto") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -597,30 +682,57 @@ fun NewProductDialog(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = priceInput,
-                        onValueChange = { priceInput = it },
+                        onValueChange = {
+                            priceInput = it
+                            validationError = null
+                        },
                         label = { Text("Precio Venta ($)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = costInput,
-                        onValueChange = { costInput = it },
+                        onValueChange = {
+                            costInput = it
+                            validationError = null
+                        },
                         label = { Text("Costo ($)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
+                }
+
+                validationError?.let { err ->
+                    Surface(
+                        color = DrakosRedContainer,
+                        border = BorderStroke(1.dp, DrakosRed),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = DangerRed,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val price = priceInput.toDoubleOrNull() ?: 0.0
-                    val cost = costInput.toDoubleOrNull() ?: 0.0
-                    if (nameInput.isNotBlank() && price > 0) {
-                        onConfirm(
+                    val price = parseArsDecimal(priceInput)
+                    val cost = if (costInput.isBlank()) 0.0 else parseArsDecimal(costInput)
+                    when {
+                        barcodeInput.isBlank() -> validationError = "Ingrese el código de barras (EAN)."
+                        nameInput.isBlank() -> validationError = "Ingrese el nombre del producto."
+                        price == null || price <= 0.0 -> validationError = "Ingrese un precio de venta válido mayor a 0."
+                        cost == null || cost < 0.0 -> validationError = "Ingrese un costo numérico válido (>= 0)."
+                        else -> onConfirm(
                             ProductEntity(
                                 id = 0,
                                 barcode = barcodeInput.trim(),

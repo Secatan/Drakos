@@ -12,13 +12,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
@@ -32,8 +34,11 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -46,7 +51,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,6 +66,9 @@ import com.example.ui.components.DrakosBrandIdentityCard
 import com.example.ui.components.DrakosBranchBreakdownCard
 import com.example.ui.components.DrakosDonutSummaryCard
 import com.example.ui.components.DrakosRecentActivityCard
+import com.example.ui.components.DrakosSegmentedTabItem
+import com.example.ui.components.DrakosSegmentedTabs
+import com.example.ui.components.DrakosSlideOverDrawer
 import com.example.ui.components.DrakosSparklineKpiCard
 import com.example.ui.components.FinancialBarChartCard
 import com.example.ui.components.HourlyHeatmapCard
@@ -75,12 +82,12 @@ import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DrakosBlack
 import com.example.ui.theme.DrakosDarkGray
 import com.example.ui.theme.DrakosEmerald
-import com.example.ui.theme.DrakosGold
 import com.example.ui.theme.DrakosHairline
 import com.example.ui.theme.DrakosLightCanvas
 import com.example.ui.theme.DrakosMutedGray
 import com.example.ui.theme.DrakosRed
 import com.example.ui.theme.DrakosRedContainer
+import com.example.ui.theme.DrakosSurfaceSoft
 import com.example.ui.theme.DrakosWhite
 import com.example.ui.theme.JetBrainsMonoFontFamily
 import com.example.ui.theme.SpaceGroteskFontFamily
@@ -103,9 +110,12 @@ fun OwnerAccountingDashboard(
     val categories by viewModel.categories.collectAsStateWithLifecycle()
 
     var chartBranchFilterId by remember { mutableStateOf<Long?>(null) }
-    var currentTab by remember { mutableIntStateOf(0) } // 0: Resumen Ejecutivo, 1: Sucursales, 2: Tickets, 3: Fiscal & Red
+    var currentTab by remember { mutableIntStateOf(0) } // 0: Resumen, 1: Sucursales, 2: Tickets
     var showExportModal by remember { mutableStateOf(false) }
     var showEditSettingsModal by remember { mutableStateOf(false) }
+    var showFiscalDrawer by remember { mutableStateOf(false) }
+    var selectedBranchForDrawer by remember { mutableStateOf<BranchEntity?>(null) }
+    var selectedSaleForDrawer by remember { mutableStateOf<SaleEntity?>(null) }
     var saleToVoid by remember { mutableStateOf<SaleEntity?>(null) }
 
     val completedSales = remember(allSales) { allSales.filter { it.status == "COMPLETED" } }
@@ -139,6 +149,7 @@ fun OwnerAccountingDashboard(
             val amt = completedSales.filter { it.branchId == branch.id }.sumOf { it.totalAmount }
             val pct = if (grossRevenue > 0.0) (amt / grossRevenue) * 100.0 else 0.0
             BranchSalesBreakdownItem(
+                branchId = branch.id,
                 branchName = branch.name,
                 amount = amt,
                 sharePercent = pct
@@ -152,10 +163,11 @@ fun OwnerAccountingDashboard(
             Triple(
                 sale.createdAt,
                 RecentActivityFeedItem(
-                    title = "Venta realizada - ${formatCurrency(sale.totalAmount)}",
+                    title = "Venta ${sale.receiptNumber}",
                     subtitle = "${formatDateTime(sale.createdAt)} • ${branchMap[sale.branchId] ?: "Sucursal"}",
                     badgeText = "+ ${formatCurrency(sale.totalAmount)}",
-                    kind = ActivityKind.SALE
+                    kind = ActivityKind.SALE,
+                    saleId = sale.id
                 ),
                 true
             )
@@ -191,87 +203,100 @@ fun OwnerAccountingDashboard(
         if (raw.all { it == 0f }) listOf(0.22f, 0.32f, 0.38f, 0.45f, 0.52f, 0.68f, 0.75f) else raw
     }
 
+    val sectionTabs = remember(allSales.size) {
+        listOf(
+            DrakosSegmentedTabItem(0, "Resumen", Icons.Default.BarChart),
+            DrakosSegmentedTabItem(1, "Sucursales", Icons.Default.LocationOn),
+            DrakosSegmentedTabItem(2, "Tickets (${allSales.size})", Icons.Default.Receipt)
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(DrakosLightCanvas)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // Fila superior de pestañas SaaS + Exportación CSV
+        // Fila superior limpia: Tabs segmentadas neutras + Exportar CSV + Drawer Fiscal & Red
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            LazyRow(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    OwnerSectionPill(
-                        label = "Resumen Ejecutivo",
-                        icon = Icons.Default.BarChart,
-                        selected = currentTab == 0,
-                        onClick = { currentTab = 0 }
-                    )
-                }
-                item {
-                    OwnerSectionPill(
-                        label = "Sucursales",
-                        icon = Icons.Default.LocationOn,
-                        selected = currentTab == 1,
-                        onClick = { currentTab = 1 }
-                    )
-                }
-                item {
-                    OwnerSectionPill(
-                        label = "Tickets (${allSales.size})",
-                        icon = Icons.Default.Storefront,
-                        selected = currentTab == 2,
-                        onClick = { currentTab = 2 }
-                    )
-                }
-                item {
-                    OwnerSectionPill(
-                        label = "Fiscal & Red",
-                        icon = Icons.Default.Settings,
-                        selected = currentTab == 3,
-                        onClick = { currentTab = 3 }
-                    )
-                }
-            }
+            DrakosSegmentedTabs(
+                items = sectionTabs,
+                selectedId = currentTab,
+                onSelect = { currentTab = it },
+                modifier = Modifier.weight(1f, fill = false)
+            )
 
             Spacer(modifier = Modifier.width(8.dp))
-            Surface(
-                color = DrakosWhite,
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, DrakosHairline),
-                modifier = Modifier
-                    .clickable { showExportModal = true }
-                    .testTag("export_csv_button")
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                Surface(
+                    color = DrakosWhite,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, DrakosHairline),
+                    modifier = Modifier
+                        .heightIn(min = 42.dp)
+                        .clickable { showFiscalDrawer = true }
+                        .testTag("open_fiscal_drawer_button")
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = "Exportar reportes CSV",
-                        tint = DrakosRed,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "CSV",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DrakosDarkGray
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Fiscal y Empresa",
+                            tint = DrakosDarkGray,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Fiscal",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DrakosDarkGray
+                        )
+                    }
+                }
+
+                Surface(
+                    color = DrakosWhite,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, DrakosHairline),
+                    modifier = Modifier
+                        .heightIn(min = 42.dp)
+                        .clickable { showExportModal = true }
+                        .testTag("export_csv_button")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Exportar reportes CSV",
+                            tint = DrakosDarkGray,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "CSV",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DrakosDarkGray
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         when (currentTab) {
             0 -> {
@@ -281,10 +306,10 @@ fun OwnerAccountingDashboard(
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 16.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(bottom = 18.dp)
                     ) {
-                        // Fila 1: 4 Tarjetas KPI Blancas (4 columnas en desktop, 2x2 en tablet/móvil)
+                        // Fila 1: 4 Tarjetas KPI Ultra-Clean
                         item {
                             if (isDesktopGrid) {
                                 Row(
@@ -298,40 +323,36 @@ fun OwnerAccountingDashboard(
                                         trendColor = DrakosEmerald,
                                         icon = Icons.Default.ShoppingBag,
                                         accentColor = DrakosRed,
-                                        badgeContainerColor = DrakosBlack,
                                         sparklinePoints = revenueSeries,
                                         modifier = Modifier.weight(1f)
                                     )
                                     DrakosSparklineKpiCard(
-                                        title = "Ganancias (${String.format("%.1f", marginPct)}%)",
+                                        title = "Margen Bruto (${String.format(java.util.Locale.forLanguageTag("es-AR"), "%.1f", marginPct)}%)",
                                         value = formatCurrency(grossMargin),
                                         trendText = if (netProfit >= 0) "↑ Neto: ${formatCurrency(netProfit)}" else "↓ Revisar gastos",
                                         trendColor = if (netProfit >= 0) DrakosEmerald else DangerRed,
                                         icon = Icons.AutoMirrored.Filled.TrendingUp,
                                         accentColor = DrakosEmerald,
-                                        badgeContainerColor = DrakosBlack,
                                         sparklinePoints = marginSeries,
                                         modifier = Modifier.weight(1f)
                                     )
                                     DrakosSparklineKpiCard(
                                         title = "Ticket Promedio",
                                         value = formatCurrency(avgTicket),
-                                        trendText = "→ CMV: ${formatCurrency(totalCogs)}",
+                                        trendText = "CMV: ${formatCurrency(totalCogs)}",
                                         trendColor = DrakosMutedGray,
                                         icon = Icons.Default.AttachMoney,
-                                        accentColor = DrakosRed,
-                                        badgeContainerColor = DrakosRed,
+                                        accentColor = DrakosBlack,
                                         sparklinePoints = ticketSeries,
                                         modifier = Modifier.weight(1f)
                                     )
                                     DrakosSparklineKpiCard(
-                                        title = "Productos Vendidos",
+                                        title = "Unidades Vendidas",
                                         value = "$unitsSold u.",
-                                        trendText = "→ Gastos: ${formatCurrency(totalExpenses)}",
-                                        trendColor = DrakosDarkGray,
+                                        trendText = "Gastos: ${formatCurrency(totalExpenses)}",
+                                        trendColor = DrakosMutedGray,
                                         icon = Icons.Default.AccountBalance,
                                         accentColor = DrakosDarkGray,
-                                        badgeContainerColor = DrakosBlack,
                                         sparklinePoints = ticketSeries,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -349,18 +370,16 @@ fun OwnerAccountingDashboard(
                                             trendColor = DrakosEmerald,
                                             icon = Icons.Default.ShoppingBag,
                                             accentColor = DrakosRed,
-                                            badgeContainerColor = DrakosBlack,
                                             sparklinePoints = revenueSeries,
                                             modifier = Modifier.weight(1f)
                                         )
                                         DrakosSparklineKpiCard(
-                                            title = "Ganancias (${String.format("%.1f", marginPct)}%)",
+                                            title = "Margen (${String.format(java.util.Locale.forLanguageTag("es-AR"), "%.1f", marginPct)}%)",
                                             value = formatCurrency(grossMargin),
                                             trendText = if (netProfit >= 0) "↑ Rentable" else "↓ Negativo",
                                             trendColor = if (netProfit >= 0) DrakosEmerald else DangerRed,
                                             icon = Icons.AutoMirrored.Filled.TrendingUp,
                                             accentColor = DrakosEmerald,
-                                            badgeContainerColor = DrakosBlack,
                                             sparklinePoints = marginSeries,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -375,19 +394,17 @@ fun OwnerAccountingDashboard(
                                             trendText = "CMV ${formatCurrency(totalCogs)}",
                                             trendColor = DrakosMutedGray,
                                             icon = Icons.Default.AttachMoney,
-                                            accentColor = DrakosRed,
-                                            badgeContainerColor = DrakosRed,
+                                            accentColor = DrakosBlack,
                                             sparklinePoints = ticketSeries,
                                             modifier = Modifier.weight(1f)
                                         )
                                         DrakosSparklineKpiCard(
-                                            title = "Unidades Vendidas",
+                                            title = "Unidades",
                                             value = "$unitsSold u.",
                                             trendText = "Neto ${formatCurrency(netProfit)}",
                                             trendColor = if (netProfit >= 0) DrakosEmerald else DangerRed,
                                             icon = Icons.Default.AccountBalance,
                                             accentColor = DrakosDarkGray,
-                                            badgeContainerColor = DrakosBlack,
                                             sparklinePoints = ticketSeries,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -396,7 +413,7 @@ fun OwnerAccountingDashboard(
                             }
                         }
 
-                        // Fila 2: Ventas por Período (2/3) + Ventas por Sucursal (1/3)
+                        // Fila 2: Ventas por Período + Ventas por Sucursal (clic abre Drawer de Sucursal)
                         item {
                             if (isDesktopGrid) {
                                 Row(
@@ -417,6 +434,9 @@ fun OwnerAccountingDashboard(
                                     DrakosBranchBreakdownCard(
                                         items = branchBreakdown,
                                         onSeeAll = { currentTab = 1 },
+                                        onBranchClick = { item ->
+                                            selectedBranchForDrawer = branches.find { it.id == item.branchId }
+                                        },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
@@ -433,15 +453,18 @@ fun OwnerAccountingDashboard(
                                     )
                                     DrakosBranchBreakdownCard(
                                         items = branchBreakdown,
-                                        onSeeAll = { currentTab = 1 }
+                                        onSeeAll = { currentTab = 1 },
+                                        onBranchClick = { item ->
+                                            selectedBranchForDrawer = branches.find { it.id == item.branchId }
+                                        }
                                     )
                                 }
                             }
                         }
 
-                        // Fila 3: Resumen Financiero Donut + Actividad Reciente + Identidad DRAKOS STORE
+                        // Fila 3: Donut Financiero + Actividad Reciente (sin tarjeta promocional distractora)
                         item {
-                            if (isDesktopGrid) {
+                            if (isTabletGrid) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -456,35 +479,12 @@ fun OwnerAccountingDashboard(
                                     DrakosRecentActivityCard(
                                         items = recentFeed,
                                         onSeeMore = { currentTab = 2 },
+                                        onItemClick = { act ->
+                                            act.saleId?.let { sid ->
+                                                selectedSaleForDrawer = allSales.find { it.id == sid }
+                                            }
+                                        },
                                         modifier = Modifier.weight(1.25f)
-                                    )
-                                    DrakosBrandIdentityCard(
-                                        branchesCount = branches.size,
-                                        usersCount = allUsers.size,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            } else if (isTabletGrid) {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        DrakosDonutSummaryCard(
-                                            grossRevenue = grossRevenue,
-                                            cogsAmount = totalCogs,
-                                            expensesAmount = totalExpenses,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        DrakosBrandIdentityCard(
-                                            branchesCount = branches.size,
-                                            usersCount = allUsers.size,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    DrakosRecentActivityCard(
-                                        items = recentFeed,
-                                        onSeeMore = { currentTab = 2 }
                                     )
                                 }
                             } else {
@@ -496,11 +496,12 @@ fun OwnerAccountingDashboard(
                                     )
                                     DrakosRecentActivityCard(
                                         items = recentFeed,
-                                        onSeeMore = { currentTab = 2 }
-                                    )
-                                    DrakosBrandIdentityCard(
-                                        branchesCount = branches.size,
-                                        usersCount = allUsers.size
+                                        onSeeMore = { currentTab = 2 },
+                                        onItemClick = { act ->
+                                            act.saleId?.let { sid ->
+                                                selectedSaleForDrawer = allSales.find { it.id == sid }
+                                            }
+                                        }
                                     )
                                 }
                             }
@@ -525,53 +526,54 @@ fun OwnerAccountingDashboard(
                             }
                         }
 
-                        // Fila 5: Tarjeta Fiscal AFIP y Facturas de Proveedores Pendientes (blanca limpia)
+                        // Fila 5: Resumen Fiscal compacto clickeable para abrir Drawer de Empresa & Fiscal
                         item {
                             Surface(
                                 color = DrakosWhite,
                                 shape = RoundedCornerShape(14.dp),
                                 border = BorderStroke(1.dp, DrakosHairline),
-                                shadowElevation = 1.dp,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showFiscalDrawer = true }
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(14.dp),
+                                        .padding(16.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "IVA Débito Fiscal (${companySettings.defaultVatRate.toInt()}%) • ${pendingInvoices.size} Fact. Prov. Pendientes",
+                                            text = "IVA Débito (${companySettings.defaultVatRate.toInt()}%) • ${pendingInvoices.size} Fact. Pendientes",
                                             fontSize = 11.sp,
                                             color = DrakosMutedGray
                                         )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                             Text(
                                                 text = "IVA: ${formatCurrency(vatDebit)}",
                                                 fontFamily = SpaceGroteskFontFamily,
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
                                                 color = DrakosDarkGray
                                             )
                                             Text(
                                                 text = "Por pagar: ${formatCurrency(pendingInvoicesTotal)}",
                                                 fontFamily = SpaceGroteskFontFamily,
-                                                fontSize = 16.sp,
+                                                fontSize = 15.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (pendingInvoicesTotal > 0) DrakosRed else DrakosMutedGray
                                             )
                                         }
                                     }
-                                    Surface(color = DrakosRedContainer, shape = RoundedCornerShape(8.dp)) {
+                                    Surface(color = DrakosSurfaceSoft, shape = RoundedCornerShape(8.dp)) {
                                         Text(
                                             text = "CUIT ${companySettings.cuit}",
                                             fontFamily = JetBrainsMonoFontFamily,
                                             fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = DrakosRed,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = DrakosDarkGray,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                         )
                                     }
@@ -588,7 +590,7 @@ fun OwnerAccountingDashboard(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 12.dp)
                 ) {
-                    items(branches) { branch: BranchEntity ->
+                    items(branches, key = { it.id }) { branch: BranchEntity ->
                         val branchSales = completedSales.filter { it.branchId == branch.id }
                         val branchRev = branchSales.sumOf { it.totalAmount }
                         val branchCogs = allAnalytics.filter { it.branchId == branch.id }.sumOf { it.unitCost * it.quantity }
@@ -596,12 +598,15 @@ fun OwnerAccountingDashboard(
                         val branchNet = (branchRev - branchCogs) - branchExp
 
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedBranchForDrawer = branch },
                             colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                             border = BorderStroke(1.dp, DrakosHairline),
+                            elevation = CardDefaults.cardElevation(0.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -614,7 +619,7 @@ fun OwnerAccountingDashboard(
                                     Text(
                                         text = "Neto: ${formatCurrency(branchNet)}",
                                         fontFamily = SpaceGroteskFontFamily,
-                                        fontWeight = FontWeight.ExtraBold,
+                                        fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
                                         color = if (branchNet >= 0) SuccessGreen else DangerRed
                                     )
@@ -631,24 +636,27 @@ fun OwnerAccountingDashboard(
                 }
             }
 
-            2 -> {
+            else -> {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 12.dp)
                 ) {
-                    items(allSales) { sale ->
+                    items(allSales, key = { it.id }) { sale ->
                         val isVoided = sale.status == "VOIDED"
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedSaleForDrawer = sale },
                             colors = CardDefaults.cardColors(containerColor = DrakosWhite),
                             border = BorderStroke(1.dp, DrakosHairline),
+                            elevation = CardDefaults.cardElevation(0.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -657,7 +665,7 @@ fun OwnerAccountingDashboard(
                                         Text(sale.receiptNumber, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = DrakosDarkGray)
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Surface(
-                                            color = if (isVoided) DangerRed.copy(alpha = 0.14f) else SuccessGreen.copy(alpha = 0.14f),
+                                            color = if (isVoided) DangerRed.copy(alpha = 0.12f) else SuccessGreen.copy(alpha = 0.12f),
                                             shape = RoundedCornerShape(6.dp)
                                         ) {
                                             Text(
@@ -678,6 +686,7 @@ fun OwnerAccountingDashboard(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = formatCurrency(sale.totalAmount),
+                                        fontFamily = JetBrainsMonoFontFamily,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
                                         color = if (isVoided) DrakosMutedGray else SuccessGreen
@@ -686,7 +695,9 @@ fun OwnerAccountingDashboard(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         OutlinedButton(
                                             onClick = { saleToVoid = sale },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            border = BorderStroke(1.dp, DrakosHairline),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.heightIn(min = 40.dp)
                                         ) {
                                             Icon(Icons.Default.Cancel, contentDescription = "Anular", tint = DangerRed, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(3.dp))
@@ -699,84 +710,100 @@ fun OwnerAccountingDashboard(
                     }
                 }
             }
+        }
+    }
 
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 12.dp)
-                ) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = DrakosWhite),
+    // Slide-over Drawer: Fiscal, Parámetros y Red de Kioscos (antes pestaña incrustada)
+    DrakosSlideOverDrawer(
+        visible = showFiscalDrawer,
+        title = "Fiscal & Red Drakos",
+        subtitle = "Parámetros AFIP, umbrales de caja y sucursales",
+        onDismiss = { showFiscalDrawer = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            DrakosBrandIdentityCard(
+                branchesCount = branches.size,
+                usersCount = allUsers.size
+            )
+
+            Surface(
+                color = DrakosLightCanvas,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, DrakosHairline),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Parámetros Generales", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DrakosDarkGray)
+                        OutlinedButton(
+                            onClick = { showEditSettingsModal = true },
                             border = BorderStroke(1.dp, DrakosHairline),
-                            shape = RoundedCornerShape(14.dp)
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier
+                                .heightIn(min = 40.dp)
+                                .testTag("edit_company_settings_button")
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Settings, contentDescription = null, tint = DrakosRed, modifier = Modifier.size(20.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Parámetros Generales Drakos", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DrakosDarkGray)
-                                    }
-                                    OutlinedButton(
-                                        onClick = { showEditSettingsModal = true },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        modifier = Modifier.testTag("edit_company_settings_button")
-                                    ) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Editar parámetros", modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Editar", fontSize = 11.sp)
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                InfoRow("Razón Social:", companySettings.businessName)
-                                InfoRow("CUIT Central:", "${companySettings.cuit} (${companySettings.taxCondition})")
-                                InfoRow("Alícuota IVA General:", "${companySettings.defaultVatRate}%")
-                                InfoRow("Tope Alerta Gaveta:", formatCurrency(companySettings.cashDropAlertThreshold))
-                                InfoRow("Tolerancia Descuadre:", formatCurrency(companySettings.cashAuditTolerance))
-                                InfoRow("Lista Blanca Dispositivos:", if (companySettings.strictDeviceWhitelist) "ACTIVA (Solo Nivel 3)" else "Flexible")
-                            }
+                            Icon(Icons.Default.Edit, contentDescription = "Editar parámetros", tint = DrakosDarkGray, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Editar", fontSize = 11.sp, color = DrakosDarkGray)
                         }
                     }
+                    HorizontalDivider(color = DrakosHairline)
+                    InfoRow("Razón Social", companySettings.businessName)
+                    InfoRow("CUIT", "${companySettings.cuit} (${companySettings.taxCondition})")
+                    InfoRow("Alícuota IVA", "${companySettings.defaultVatRate}%")
+                    InfoRow("Tope Alerta Gaveta", formatCurrency(companySettings.cashDropAlertThreshold))
+                    InfoRow("Tolerancia Descuadre", formatCurrency(companySettings.cashAuditTolerance))
+                    InfoRow("Lista Blanca N3", if (companySettings.strictDeviceWhitelist) "Activa" else "Flexible")
+                }
+            }
 
-                    items(branches) { branch ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = DrakosWhite),
-                            border = BorderStroke(1.dp, DrakosHairline),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Storefront, contentDescription = null, tint = DrakosRed, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("${branch.code} - ${branch.name}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = DrakosDarkGray)
-                                    }
-                                    Text("${branch.address} • Tel: ${branch.phone}", fontSize = 11.sp, color = DrakosMutedGray)
-                                }
-                                Surface(color = SuccessGreen.copy(alpha = 0.14f), shape = RoundedCornerShape(6.dp)) {
-                                    Text(
-                                        "OPERATIVO",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SuccessGreen,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
+            Text(
+                text = "Sucursales Activas (${branches.size})",
+                fontFamily = SpaceGroteskFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = DrakosDarkGray
+            )
+
+            branches.forEach { branch ->
+                Surface(
+                    color = DrakosWhite,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, DrakosHairline),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showFiscalDrawer = false
+                            selectedBranchForDrawer = branch
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("${branch.code} • ${branch.name}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = DrakosDarkGray)
+                            Text(branch.address, fontSize = 10.sp, color = DrakosMutedGray)
+                        }
+                        Surface(color = SuccessGreen.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                            Text(
+                                text = "OPERATIVO",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SuccessGreen,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
                         }
                     }
                 }
@@ -784,14 +811,110 @@ fun OwnerAccountingDashboard(
         }
     }
 
-    saleToVoid?.let { sale ->
-        VoidSaleDialog(
-            sale = sale,
-            onDismiss = { saleToVoid = null },
-            onConfirm = { reason ->
-                viewModel.voidSale(sale.id, reason)
-                saleToVoid = null
+    // Slide-over Drawer: Detalle de Sucursal seleccionada
+    selectedBranchForDrawer?.let { branch ->
+        val bSales = completedSales.filter { it.branchId == branch.id }
+        val bRev = bSales.sumOf { it.totalAmount }
+        val bCogs = allAnalytics.filter { it.branchId == branch.id }.sumOf { it.unitCost * it.quantity }
+        val bExp = allExpenses.filter { it.branchId == branch.id }.sumOf { it.amount }
+        val bNet = (bRev - bCogs) - bExp
+
+        DrakosSlideOverDrawer(
+            visible = true,
+            title = branch.name,
+            subtitle = "${branch.code} • ${branch.address}",
+            onDismiss = { selectedBranchForDrawer = null }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(
+                    color = DrakosLightCanvas,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, DrakosHairline),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        InfoRow("Tickets Completados", "${bSales.size}")
+                        InfoRow("Ventas Brutas", formatCurrency(bRev))
+                        InfoRow("Costo Mercadería (CMV)", formatCurrency(bCogs))
+                        InfoRow("Gastos Operativos", formatCurrency(bExp))
+                        HorizontalDivider(color = DrakosHairline)
+                        InfoRow("Resultado Neto", formatCurrency(bNet))
+                        InfoRow("Teléfono", branch.phone)
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        chartBranchFilterId = branch.id
+                        currentTab = 0
+                        selectedBranchForDrawer = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DrakosBlack),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                ) {
+                    Text("Filtrar Gráfico por esta Sucursal", fontWeight = FontWeight.Bold)
+                }
             }
+        }
+    }
+
+    // Slide-over Drawer: Detalle de Ticket seleccionado
+    selectedSaleForDrawer?.let { sale ->
+        val isVoided = sale.status == "VOIDED"
+        val branchName = branches.find { it.id == sale.branchId }?.name ?: "Sucursal K0${sale.branchId}"
+
+        DrakosSlideOverDrawer(
+            visible = true,
+            title = "Ticket ${sale.receiptNumber}",
+            subtitle = "$branchName • ${formatDateTime(sale.createdAt)}",
+            onDismiss = { selectedSaleForDrawer = null }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(
+                    color = DrakosLightCanvas,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, DrakosHairline),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        InfoRow("Estado", if (isVoided) "ANULADO" else "EMITIDO")
+                        InfoRow("Medio de Cobro", sale.paymentMethod.label)
+                        InfoRow("Subtotal", formatCurrency(sale.subtotal))
+                        InfoRow("Descuento", formatCurrency(sale.discountAmount))
+                        InfoRow("IVA Discriminado", formatCurrency(sale.vatAmount))
+                        HorizontalDivider(color = DrakosHairline)
+                        InfoRow("Total Final", formatCurrency(sale.totalAmount))
+                    }
+                }
+
+                if (!isVoided) {
+                    Button(
+                        onClick = {
+                            saleToVoid = sale
+                            selectedSaleForDrawer = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DrakosRed),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                    ) {
+                        Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Anular Ticket", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showExportModal) {
+        CsvExportDialog(
+            generateCsv = { type -> viewModel.generateCsvExport(type) },
+            onDismiss = { showExportModal = false }
         )
     }
 
@@ -806,45 +929,15 @@ fun OwnerAccountingDashboard(
         )
     }
 
-    if (showExportModal) {
-        CsvExportDialog(
-            generateCsv = { type -> viewModel.generateCsvExport(type) },
-            onDismiss = { showExportModal = false }
+    saleToVoid?.let { sale ->
+        VoidSaleDialog(
+            sale = sale,
+            onDismiss = { saleToVoid = null },
+            onConfirm = { reason ->
+                viewModel.voidSale(sale.id, reason)
+                saleToVoid = null
+            }
         )
-    }
-}
-
-@Composable
-private fun OwnerSectionPill(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        color = if (selected) DrakosRed else DrakosWhite,
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, if (selected) DrakosRed else DrakosHairline),
-        modifier = Modifier.clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (selected) DrakosWhite else DrakosDarkGray,
-                modifier = Modifier.size(15.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (selected) DrakosWhite else DrakosDarkGray
-            )
-        }
     }
 }
 
@@ -857,6 +950,6 @@ private fun InfoRow(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, fontSize = 12.sp, color = DrakosMutedGray)
-        Text(value, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DrakosDarkGray)
+        Text(value, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = DrakosDarkGray)
     }
 }

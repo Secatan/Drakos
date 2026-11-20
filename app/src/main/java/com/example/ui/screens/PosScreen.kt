@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.Icecream
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Remove
@@ -49,6 +50,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -80,6 +82,7 @@ import com.example.domain.model.ProductWithStock
 import com.example.domain.model.PromotionDisplay
 import com.example.ui.components.BarcodeScannerDialog
 import com.example.ui.components.DigitalReceiptModal
+import com.example.ui.components.DrakosSlideOverDrawer
 import com.example.ui.components.formatCurrency
 import com.example.ui.dialogs.PaymentDialog
 import com.example.ui.theme.DangerRed
@@ -124,6 +127,7 @@ fun PosScreen(
     var showPaymentModal by remember { mutableStateOf(false) }
     var showScannerDialog by remember { mutableStateOf(false) }
     var showPromoBuilderModal by remember { mutableStateOf(false) }
+    var showQuickDrawer by remember { mutableStateOf(false) }
     var lastCompletedSale by remember { mutableStateOf<SaleEntity?>(null) }
     var barcodeInput by remember { mutableStateOf("") }
 
@@ -134,12 +138,12 @@ fun PosScreen(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Barra de búsqueda, escáner, accesos rápidos y filtros de categoría en tarjeta blanca SaaS
+        // Cabecera POS minimalista: Buscador + Escáner + botón Promos/Express + pills de categoría
         Surface(
             color = DrakosWhite,
             shape = RoundedCornerShape(14.dp),
             border = BorderStroke(1.dp, DrakosHairline),
-            shadowElevation = 1.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -206,7 +210,7 @@ fun PosScreen(
                     )
 
                     Surface(
-                        color = DrakosRed,
+                        color = DrakosBlack,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .size(50.dp)
@@ -218,13 +222,14 @@ fun PosScreen(
                                 imageVector = Icons.Default.QrCodeScanner,
                                 contentDescription = "Escanear con cámara",
                                 tint = DrakosWhite,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(21.dp)
                             )
                         }
                     }
 
                     Surface(
-                        color = DrakosBlack,
+                        color = DrakosSurfaceSoft,
+                        border = BorderStroke(1.dp, DrakosHairline),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .size(50.dp)
@@ -243,138 +248,59 @@ fun PosScreen(
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = "Agregar por código",
-                                tint = DrakosWhite,
-                                modifier = Modifier.size(22.dp)
+                                tint = DrakosDarkGray,
+                                modifier = Modifier.size(21.dp)
                             )
                         }
                     }
                 }
 
-                // Tira de Favoritos & Escaneo Express
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        QuickPosTile(
-                            label = "Favoritos",
-                            icon = Icons.Default.Star,
-                            highlighted = selectedCatId == null && barcodeInput.isEmpty(),
-                            onClick = {
-                                barcodeInput = ""
-                                viewModel.setSearchQuery("")
-                                viewModel.setCategoryFilter(null)
-                            }
-                        )
-                    }
-                    val quickSamples = listOf(
-                        Triple("+Havanna", "7790010001", Icons.Default.Cookie),
-                        Triple("+Coca 500", "7790020001", Icons.Default.LocalDrink),
-                        Triple("+Marlboro", "7790040001", Icons.Default.SmokingRooms),
-                        Triple("+Beldent", "7790030001", Icons.Default.Icecream),
-                        Triple("+Chocolinas", "7790050001", Icons.Default.Fastfood)
-                    )
-                    items(quickSamples) { (label, ean, icon) ->
-                        QuickPosTile(
-                            label = label,
-                            icon = icon,
-                            highlighted = false,
-                            onClick = { viewModel.addByBarcode(ean) }
-                        )
-                    }
-                }
-
-                // Tira Dinámica de Promociones & Combos Drakos
-                Surface(
-                    color = DrakosLightCanvas,
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, DrakosHairline),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    LazyRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.LocalFireDepartment,
-                            contentDescription = null,
-                            tint = DrakosRed,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "PROMOS:",
-                            fontFamily = SpaceGroteskFontFamily,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = DrakosDarkGray
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (canCreatePromos) {
-                                item {
-                                    Surface(
-                                        color = DrakosBlack,
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier
-                                            .clickable { showPromoBuilderModal = true }
-                                            .testTag("pos_add_promo_button")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Add,
-                                                contentDescription = "Agregar promoción",
-                                                tint = DrakosWhite,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text(
-                                                text = "Promo",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = DrakosWhite
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            items(activePromotions, key = { it.id }) { promo: PromotionDisplay ->
-                                val priceTag = if (promo.savingsAmount > 0.0) {
-                                    "${promo.badge} • ${promo.title} (${formatCurrency(promo.finalPromoPrice)})"
-                                } else {
-                                    promo.title
-                                }
-                                ComboPosChip(
-                                    text = priceTag,
-                                    highlighted = promo.id == activePromotions.firstOrNull()?.id,
-                                    onClick = { viewModel.applyPromotionToCart(promo) }
-                                )
-                            }
+                        item {
+                            CategoryPillChip(
+                                label = "Todos",
+                                selected = selectedCatId == null,
+                                onClick = { viewModel.setCategoryFilter(null) }
+                            )
+                        }
+                        items(categories) { cat: CategoryEntity ->
+                            CategoryPillChip(
+                                label = cat.name,
+                                selected = selectedCatId == cat.id,
+                                onClick = { viewModel.setCategoryFilter(cat.id) }
+                            )
                         }
                     }
-                }
 
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    item {
-                        CategoryPillChip(
-                            label = "Todos",
-                            selected = selectedCatId == null,
-                            onClick = { viewModel.setCategoryFilter(null) }
+                    OutlinedButton(
+                        onClick = { showQuickDrawer = true },
+                        border = BorderStroke(1.dp, DrakosHairline),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag("pos_quick_drawer_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocalOffer,
+                            contentDescription = "Promociones y accesos rápidos",
+                            tint = if (activePromotions.isNotEmpty()) DrakosRed else DrakosDarkGray,
+                            modifier = Modifier.size(16.dp)
                         )
-                    }
-                    items(categories) { cat: CategoryEntity ->
-                        CategoryPillChip(
-                            label = cat.name,
-                            selected = selectedCatId == cat.id,
-                            onClick = { viewModel.setCategoryFilter(cat.id) }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (activePromotions.isNotEmpty()) "Combos (${activePromotions.size})" else "Express",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DrakosDarkGray
                         )
                     }
                 }
@@ -484,6 +410,126 @@ fun PosScreen(
         }
     }
 
+    DrakosSlideOverDrawer(
+        visible = showQuickDrawer,
+        title = "Accesos Express y Combos",
+        subtitle = "Agregue productos frecuentes o aplique promociones activas",
+        onDismiss = { showQuickDrawer = false }
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                text = "Venta Rápida",
+                fontFamily = SpaceGroteskFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = DrakosDarkGray
+            )
+            val quickSamples = listOf(
+                Triple("Favoritos", "", Icons.Default.Star),
+                Triple("+Havanna", "7790010001", Icons.Default.Cookie),
+                Triple("+Coca 500", "7790020001", Icons.Default.LocalDrink),
+                Triple("+Marlboro", "7790040001", Icons.Default.SmokingRooms),
+                Triple("+Beldent", "7790030001", Icons.Default.Icecream),
+                Triple("+Chocolinas", "7790050001", Icons.Default.Fastfood)
+            )
+            quickSamples.chunked(3).forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowItems.forEach { (label, ean, icon) ->
+                        QuickPosTile(
+                            label = label,
+                            icon = icon,
+                            highlighted = ean.isEmpty() && selectedCatId == null && barcodeInput.isEmpty(),
+                            onClick = {
+                                if (ean.isEmpty()) {
+                                    barcodeInput = ""
+                                    viewModel.setSearchQuery("")
+                                    viewModel.setCategoryFilter(null)
+                                    showQuickDrawer = false
+                                } else {
+                                    viewModel.addByBarcode(ean)
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = DrakosHairline)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = DrakosRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Promociones y Combos (${activePromotions.size})",
+                        fontFamily = SpaceGroteskFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = DrakosDarkGray
+                    )
+                }
+                if (canCreatePromos) {
+                    OutlinedButton(
+                        onClick = {
+                            showQuickDrawer = false
+                            showPromoBuilderModal = true
+                        },
+                        border = BorderStroke(1.dp, DrakosHairline),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier
+                            .heightIn(min = 40.dp)
+                            .testTag("pos_add_promo_button")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = DrakosDarkGray, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Nueva Promo", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DrakosDarkGray)
+                    }
+                }
+            }
+
+            if (activePromotions.isEmpty()) {
+                Text(
+                    text = "No hay promociones activas configuradas en esta sucursal.",
+                    fontSize = 12.sp,
+                    color = DrakosMutedGray
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    activePromotions.forEach { promo: PromotionDisplay ->
+                        val priceTag = if (promo.savingsAmount > 0.0) {
+                            "${promo.badge} • ${promo.title} (${formatCurrency(promo.finalPromoPrice)})"
+                        } else {
+                            "${promo.badge} • ${promo.title}"
+                        }
+                        ComboPosChip(
+                            text = priceTag,
+                            highlighted = promo.id == activePromotions.firstOrNull()?.id,
+                            onClick = {
+                                viewModel.applyPromotionToCart(promo)
+                                showQuickDrawer = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     if (showPaymentModal) {
         val totalToPay = cart.sumOf { it.subtotal }
         PaymentDialog(
@@ -491,8 +537,8 @@ fun PosScreen(
             promoDiscount = appliedPromoDiscount,
             promoLabels = appliedPromoLabels,
             onDismiss = { showPaymentModal = false },
-            onConfirmPayment = { method, discount ->
-                viewModel.processSale(method, discount) { sale ->
+            onConfirmPayment = { method, discount, accountHolder ->
+                viewModel.processSale(method, discount, accountHolder) { sale ->
                     showPaymentModal = false
                     lastCompletedSale = sale
                 }
@@ -515,9 +561,9 @@ fun PosScreen(
                     fixedPromoPrice = fixedPrice,
                     itemsSpec = itemsSpec,
                     validSchedule = schedule,
-                    isActive = isActive
+                    isActive = isActive,
+                    onSuccess = { showPromoBuilderModal = false }
                 )
-                showPromoBuilderModal = false
             }
         )
     }
@@ -600,7 +646,7 @@ private fun PosCartPane(
         color = DrakosWhite,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, DrakosHairline),
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
         modifier = modifier
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
@@ -610,7 +656,7 @@ private fun PosCartPane(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = DrakosRed, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = DrakosDarkGray, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Ticket Actual",
@@ -775,21 +821,21 @@ private fun QuickPosTile(
     label: String,
     icon: ImageVector,
     highlighted: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        color = if (highlighted) DrakosRed else DrakosLightCanvas,
+        color = if (highlighted) DrakosBlack else DrakosLightCanvas,
         shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, if (highlighted) DrakosRed else DrakosHairline),
-        modifier = Modifier
-            .width(72.dp)
+        border = BorderStroke(1.dp, if (highlighted) DrakosBlack else DrakosHairline),
+        modifier = modifier
             .height(54.dp)
             .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 6.dp),
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -802,7 +848,7 @@ private fun QuickPosTile(
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = label,
-                fontSize = 9.sp,
+                fontSize = 10.sp,
                 fontWeight = if (highlighted) FontWeight.Bold else FontWeight.SemiBold,
                 color = if (highlighted) DrakosWhite else DrakosDarkGray,
                 maxLines = 1,
@@ -816,20 +862,23 @@ private fun QuickPosTile(
 private fun ComboPosChip(
     text: String,
     highlighted: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        color = if (highlighted) DrakosRed else DrakosWhite,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, if (highlighted) DrakosRed else DrakosHairline),
-        modifier = Modifier.clickable { onClick() }
+        color = if (highlighted) DrakosRedContainer else DrakosLightCanvas,
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, if (highlighted) DrakosRed.copy(alpha = 0.35f) else DrakosHairline),
+        modifier = modifier
+            .heightIn(min = 44.dp)
+            .clickable { onClick() }
     ) {
         Text(
             text = text,
-            fontSize = 10.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (highlighted) DrakosWhite else DrakosDarkGray,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+            color = if (highlighted) DrakosRed else DrakosDarkGray,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
         )
     }
 }
@@ -962,10 +1011,10 @@ fun ProductCard(
                 ) {
                     Text(
                         text = formatCurrency(product.sellingPrice),
-                        fontFamily = SpaceGroteskFontFamily,
+                        fontFamily = JetBrainsMonoFontFamily,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp,
-                        color = DrakosRed
+                        fontSize = 14.sp,
+                        color = DrakosDarkGray
                     )
 
                     IconButton(
@@ -979,7 +1028,7 @@ fun ProductCard(
                                 .size(34.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (product.quantityOnHand > 0) DrakosRed else DrakosSurfaceSoft
+                                    if (product.quantityOnHand > 0) DrakosBlack else DrakosSurfaceSoft
                                 )
                         ) {
                             Icon(
@@ -1034,8 +1083,9 @@ fun CartItemRow(
             Text(item.name, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = DrakosDarkGray)
             Text(
                 text = "${item.quantity} x ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.subtotal)}",
+                fontFamily = JetBrainsMonoFontFamily,
                 fontSize = 11.sp,
-                color = DrakosRed,
+                color = DrakosDarkGray,
                 fontWeight = FontWeight.Bold
             )
 

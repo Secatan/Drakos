@@ -62,6 +62,8 @@ import com.example.domain.analytics.DrakosAnalytics
 import com.example.domain.model.UserRole
 import com.example.ui.components.ActivityKind
 import com.example.ui.components.DrakosRecentActivityCard
+import com.example.ui.components.DrakosSegmentedTabItem
+import com.example.ui.components.DrakosSegmentedTabs
 import com.example.ui.components.DrakosSparklineKpiCard
 import com.example.ui.components.FinancialBarChartCard
 import com.example.ui.components.HourlyHeatmapCard
@@ -79,6 +81,7 @@ import com.example.ui.theme.DrakosLightCanvas
 import com.example.ui.theme.DrakosMutedGray
 import com.example.ui.theme.DrakosRed
 import com.example.ui.theme.DrakosRedContainer
+import com.example.ui.theme.DrakosSurfaceSoft
 import com.example.ui.theme.DrakosWhite
 import com.example.ui.theme.SpaceGroteskFontFamily
 import com.example.ui.theme.SuccessGreen
@@ -140,27 +143,12 @@ private fun Level1OperatorDashboard(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column {
-            Text(
-                text = "Operación de Mostrador",
-                fontFamily = SpaceGroteskFontFamily,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = DrakosDarkGray
-            )
-            Text(
-                text = "${currentBranch?.name ?: "Drakos"} • Nivel 1: Cobro POS e Ingreso de Mercadería",
-                fontSize = 11.sp,
-                color = DrakosMutedGray
-            )
-        }
-
-        // Tarjeta blanca limpia: Estado del turno
+        // Estado limpio del turno de caja
         Surface(
             color = DrakosWhite,
-            border = BorderStroke(1.dp, if (activeSession != null) SuccessGreen.copy(alpha = 0.45f) else DrakosRed.copy(alpha = 0.45f)),
+            border = BorderStroke(1.dp, if (activeSession != null) DrakosHairline else DrakosRed.copy(alpha = 0.4f)),
             shape = RoundedCornerShape(14.dp),
-            shadowElevation = 1.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -177,20 +165,20 @@ private fun Level1OperatorDashboard(
                             Icons.Default.LockOpen,
                             contentDescription = null,
                             tint = if (activeSession != null) SuccessGreen else DrakosRed,
-                            modifier = Modifier.padding(10.dp).size(20.dp)
+                            modifier = Modifier.padding(10.dp).size(18.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = if (activeSession != null) "Caja Abierta • Listo para cobrar" else "Caja Cerrada",
+                            text = if (activeSession != null) "Caja Abierta • ${currentBranch?.name ?: "Drakos"}" else "Caja Cerrada",
                             fontFamily = SpaceGroteskFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = DrakosDarkGray
                         )
                         Text(
-                            text = if (activeSession != null) "Puede registrar ventas e ingresar mercadería." else "Abra su turno en Caja para iniciar las ventas.",
+                            text = if (activeSession != null) "Lista para registrar ventas e ingresos." else "Abra su turno en Caja para iniciar las ventas.",
                             fontSize = 11.sp,
                             color = DrakosMutedGray
                         )
@@ -212,7 +200,7 @@ private fun Level1OperatorDashboard(
         if (showCashDropNotice) {
             Surface(
                 color = DrakosRedContainer,
-                border = BorderStroke(1.dp, DrakosRed),
+                border = BorderStroke(1.dp, DrakosRed.copy(alpha = 0.45f)),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -229,13 +217,14 @@ private fun Level1OperatorDashboard(
                         Text(
                             text = "Gaveta con alto efectivo: se recomienda realizar un retiro parcial a caja fuerte.",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             color = DrakosDarkGray
                         )
                     }
                     OutlinedButton(
                         onClick = onNavigateToShifts,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.heightIn(min = 44.dp)
                     ) {
                         Text("Ir a Caja", fontSize = 11.sp, color = DrakosRed, fontWeight = FontWeight.Bold)
                     }
@@ -243,22 +232,22 @@ private fun Level1OperatorDashboard(
             }
         }
 
-        // Tarjeta Principal 1 (Blanca con acento #D50016 estratégico): Punto de Venta
+        // Tarjeta Principal 1: Punto de Venta (Único CTA rojo #D50016)
         Surface(
             color = DrakosWhite,
             shape = RoundedCornerShape(14.dp),
             border = BorderStroke(1.dp, DrakosHairline),
-            shadowElevation = 1.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = DrakosRed, shape = RoundedCornerShape(10.dp)) {
+                    Surface(color = DrakosRedContainer, shape = RoundedCornerShape(10.dp)) {
                         Icon(
                             Icons.Default.PointOfSale,
                             contentDescription = null,
-                            tint = DrakosWhite,
-                            modifier = Modifier.padding(10.dp).size(24.dp)
+                            tint = DrakosRed,
+                            modifier = Modifier.padding(10.dp).size(22.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -292,22 +281,22 @@ private fun Level1OperatorDashboard(
             }
         }
 
-        // Tarjeta Principal 2 (Blanca con acento #08090B): Ingreso de Mercadería al Stock
+        // Tarjeta Principal 2: Ingreso de Mercadería al Stock (Superficie neutra limpia)
         Surface(
             color = DrakosWhite,
             shape = RoundedCornerShape(14.dp),
             border = BorderStroke(1.dp, DrakosHairline),
-            shadowElevation = 1.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = DrakosBlack, shape = RoundedCornerShape(10.dp)) {
+                    Surface(color = DrakosSurfaceSoft, shape = RoundedCornerShape(10.dp)) {
                         Icon(
                             Icons.Default.Inventory,
                             contentDescription = null,
-                            tint = DrakosWhite,
-                            modifier = Modifier.padding(10.dp).size(24.dp)
+                            tint = DrakosDarkGray,
+                            modifier = Modifier.padding(10.dp).size(22.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -421,7 +410,7 @@ private fun Level2BranchDashboard(
             .background(DrakosLightCanvas)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // Barra de acciones rápidas + tabs limpias
+        // Barra de acciones rápidas con jerarquía clara (POS rojo CTA, Ingresar & Locales neutros)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -437,16 +426,16 @@ private fun Level2BranchDashboard(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("POS", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
-            Button(
+            OutlinedButton(
                 onClick = { onNavigateToStockIntake(true) },
-                colors = ButtonDefaults.buttonColors(containerColor = DrakosBlack),
+                border = BorderStroke(1.dp, DrakosHairline),
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp)
             ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = DrakosDarkGray, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Ingresar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Ingresar", fontSize = 12.sp, color = DrakosDarkGray, fontWeight = FontWeight.SemiBold)
             }
             OutlinedButton(
                 onClick = onNavigateToComms,
@@ -457,34 +446,22 @@ private fun Level2BranchDashboard(
             ) {
                 Icon(Icons.Default.Forum, contentDescription = null, tint = DrakosDarkGray, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Locales", fontSize = 12.sp, color = DrakosDarkGray, fontWeight = FontWeight.Bold)
+                Text("Locales", fontSize = 12.sp, color = DrakosDarkGray, fontWeight = FontWeight.SemiBold)
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val chipColors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = DrakosRed,
-                selectedLabelColor = DrakosWhite
-            )
-            FilterChip(
-                selected = currentTab == 0,
-                onClick = { currentTab = 0 },
-                colors = chipColors,
-                shape = RoundedCornerShape(10.dp),
-                label = { Text("Resumen Sucursal", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            )
-            FilterChip(
-                selected = currentTab == 1,
-                onClick = { currentTab = 1 },
-                colors = chipColors,
-                shape = RoundedCornerShape(10.dp),
-                label = { Text("Tickets Local (${branchSales.size})", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            )
-        }
+        DrakosSegmentedTabs(
+            items = listOf(
+                DrakosSegmentedTabItem(0, "Resumen Sucursal"),
+                DrakosSegmentedTabItem(1, "Tickets (${branchSales.size})")
+            ),
+            selectedId = currentTab,
+            onSelect = { currentTab = it }
+        )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         if (currentTab == 0) {
             BoxWithConstraints(modifier = Modifier.weight(1f)) {
